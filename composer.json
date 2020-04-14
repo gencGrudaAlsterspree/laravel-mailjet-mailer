@@ -1,0 +1,33 @@
+{
+    "version": "0.1",
+    "name": "wize-wiz/laravel-mailjet-mailer",
+    "description": "Laravel E-Mail package for Mailjet integration with Send API v3/v3.1",
+    "type": "library",
+    "authors": [
+        {
+            "name": "wize-wiz",
+            "email": "wize-wiz@git.wizdom.de"
+        }
+    ],
+    "require": {
+        "php": "^7.0"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "WizeWiz\\MailjetMailer\\": "src"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "WizeWiz\\MailjetMailer\\MailjetMailerServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
