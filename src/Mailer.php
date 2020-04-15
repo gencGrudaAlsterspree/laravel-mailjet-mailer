@@ -71,7 +71,8 @@ class Mailer {
      */
     public static function newRequest($version = null) {
         return MailjetRequest::make([
-            'version' => $version === null ? static::DEFAULT_VERSION : $version
+            'version' => $version === null ? static::DEFAULT_VERSION : $version,
+            'sandbox' => false
         ]);
     }
 
