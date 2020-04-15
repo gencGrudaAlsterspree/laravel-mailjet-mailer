@@ -27,6 +27,8 @@ class CreateTableMailjetRequests extends Migration {
             $table->string('status')->nullable();
             $table->string('success')->nullable();
             $table->string('version');
+            $table->boolean('sandbox')->nullable();
+            $table->json('queue')->nullable();
             $table->timestamps();
         });
 

@@ -10,7 +10,7 @@ class MailjetWebhookEvent extends Model {
     public $timestamps = true;
 
     protected $fillable = [
-        'custom_id',
+        'mailjet_request_id',
         'mailjet_id',
         'mailjet_uuid',
         'event',
@@ -19,11 +19,12 @@ class MailjetWebhookEvent extends Model {
     ];
 
     protected $casts = [
+        'time' => 'datetime',
         'data' => 'array'
     ];
 
     /**
-     *
+     * Update event for message model.
      */
     protected static function boot() {
         static::saved(function($model) {
@@ -42,5 +43,9 @@ class MailjetWebhookEvent extends Model {
     // belongs to
     public function mailjet_message() {
         return $this->belongsTo(MailjetMessage::class, 'mailjet_id', 'mailjet_id');
+    }
+
+    public function mailjet_request() {
+        return $this->belongsTo(MailjetRequest::class);
     }
 }

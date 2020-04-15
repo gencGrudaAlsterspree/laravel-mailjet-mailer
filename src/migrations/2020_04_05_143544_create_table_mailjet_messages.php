@@ -15,7 +15,7 @@ class CreateTableMailjetMessages extends Migration {
         Schema::create('mailjet_messages', function (Blueprint $table) {
             $table->bigIncrements(      'id');
             // custom id supplied by Mailjet/Mailer.
-            $table->string(             'custom_id', 255)->nullable();
+            $table->string(             'mailjet_request_id', 255)->nullable();
             // morphable relation
             $table->string(             'mailjet_messageble_type', 126)->nullable();
             $table->unsignedInteger(    'mailjet_messageble_id')->nullable();
@@ -40,13 +40,11 @@ class CreateTableMailjetMessages extends Migration {
             $table->string(             'delivery_status', 18);
             // if sandboxed, only v3.1. Defaults to false.
             $table->boolean(            'sandbox')->default(false);
-            $table->json(               'request');
-            $table->json(               'response')->nullable();
             $table->timestamps();
         });
 
         Schema::table('mailjet_messages', function(Blueprint $table) {
-            $table->index('custom_id');
+            $table->index('mailjet_request_id');
             $table->index('email');
             $table->index('mailjet_id');
             $table->index('mailjet_uuid');

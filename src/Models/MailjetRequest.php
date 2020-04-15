@@ -837,6 +837,13 @@ class MailjetRequest extends Model {
     }
 
     /**
+     *
+     */
+    public function mailjet_webhook_events() {
+       return $this->hasMany(MailjetWebhookEvent::class);
+    }
+
+    /**
      * Increment tries.
      */
     public function tried() {

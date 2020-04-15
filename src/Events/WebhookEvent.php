@@ -28,10 +28,11 @@ abstract class WebhookEvent implements ShouldBroadcastNow {
     protected function saveEvent() {
         try {
             MailjetWebhookEvent::create([
-                'custom_id' => isset($this->data['CustomID']) ? $this->data['CustomID'] : null,
+                'mailjet_request_id' => isset($this->data['CustomID']) ? $this->data['CustomID'] : null,
                 'mailjet_id' => $this->data['MessageID'],
                 'mailjet_uuid' => $this->data['Message_GUID'],
                 'event' => $this->data['event'],
+                'time' => $this->data['time'],
                 'data' => $this->data
             ]);
         // silently fail

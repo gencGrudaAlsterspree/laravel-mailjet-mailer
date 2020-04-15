@@ -14,7 +14,7 @@ class CreateTableMailjetWebhookEvents extends Migration {
         Schema::disableForeignKeyConstraints();
         Schema::create('mailjet_webhook_events', function (Blueprint $table) {
             $table->bigIncrements(  'id');
-            $table->string(         'custom_id', 255)->nullable();
+            $table->string(         'mailjet_request_id', 255)->nullable();
             $table->bigInteger(     'mailjet_id');
             $table->string(         'mailjet_uuid', 255);
             $table->string(         'event', 18);
