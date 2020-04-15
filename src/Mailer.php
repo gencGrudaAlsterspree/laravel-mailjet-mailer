@@ -236,7 +236,7 @@ class Mailer {
                     // version 3.1 supports sandbox
                     if ($Request->getVersion() === static::VERSION_31 && $Request->isSandboxed() === true) {
                         // sandbox the request
-                        $Request->sandbox();
+                        $Request->useSandbox();
                         $LibResponse = $MailClient->post(Resources::$Email, ['body' => $Request->buildBody()]);
                         return $this->handleResponse($Request, $LibResponse);
                     }

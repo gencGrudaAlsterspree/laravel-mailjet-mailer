@@ -346,7 +346,7 @@ class MailjetRequest extends Model {
      * @param bool $sandbox
      * @return Mailer
      */
-    public function sandbox($sandbox = true) {
+    public function useSandbox($sandbox = true) {
         $this->sandbox = $sandbox;
         return $this;
     }
