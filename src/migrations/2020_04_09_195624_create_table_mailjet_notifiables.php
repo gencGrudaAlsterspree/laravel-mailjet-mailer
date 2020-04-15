@@ -15,7 +15,7 @@ class CreateTableMailjetNotifiables extends Migration {
         Schema::dropIfExists('mailjet_notifiables');
 
         Schema::create('mailjet_notifiables', function (Blueprint $table) {
-            $table->bigIncrements();
+            $table->bigIncrements('id');
             $table->string('mailjet_request_id', 36);
             $table->morphs('mailjet_notifiable');
             $table->timestamps();
