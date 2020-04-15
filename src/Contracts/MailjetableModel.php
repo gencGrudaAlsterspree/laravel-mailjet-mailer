@@ -3,7 +3,7 @@
 namespace WizeWiz\MailjetMailer\Contracts;
 
 interface MailjetableModel {
-    public function asRecipient() : array;
-    public function getEmail() : string;
-    public function getName() : string;
+    public function mailjetableRecipient() : array;
+    public function mailjetableEmail() : string;
+    public function mailjetableName() : string;
 }

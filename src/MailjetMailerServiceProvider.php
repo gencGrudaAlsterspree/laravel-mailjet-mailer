@@ -11,9 +11,7 @@ class MailjetMailerServiceProvider extends ServiceProvider {
      *
      * @return void
      */
-    public function register() {
-
-    }
+    public function register() {}
 
     /**
      * Bootstrap services.
@@ -23,5 +21,7 @@ class MailjetMailerServiceProvider extends ServiceProvider {
     public function boot() {
         // mailjet-mailer migrations
         $this->loadMigrationsFrom(__DIR__.'/migrations/');
+        // include routes
+        $this->loadRoutesFrom(__DIR__.'/routes/webhook.php');
     }
 }

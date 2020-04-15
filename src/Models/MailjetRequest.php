@@ -2,11 +2,10 @@
 
 namespace WizeWiz\MailjetMailer\Models;
 
-use App\Contracts\Notifiable;
-use App\Model\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use WizeWiz\MailjetMailer\Concerns\UsesUuids;
+use WizeWiz\MailjetMailer\Contracts\MailjetableModel;
 use WizeWiz\MailjetMailer\Contracts\MailjetMessageable;
 use WizeWiz\MailjetMailer\Jobs\MailjetJobRequest;
 use WizeWiz\MailjetMailer\Mailer;
@@ -370,21 +369,23 @@ class MailjetRequest extends Model {
 
     /**
      * Add a Notifiable object to the recipients list.
-     * @todo: check and prevent diplicate to($notifiable)->to($notifiable)?
-     * @param Notifiable $notifiable
+     * @todo: Can we hint with Eloquent\Model?
+     * @param $notifiable
      * @return Mailer
      */
-    public function notify(Notifiable $notifiable) {
+    public function notify(object $notifiable) {
         try {
-            // object name without namespace
-            $shortname = (new \ReflectionClass($notifiable))->getShortName();
-            $object_class_name = 'MailjetModel' . $shortname;
-            if (class_exists($object_class_name)) {
-                list('email' => $email, 'name' => $name) = (new $object_class_name($notifiable))->asRecipient();
-            } // try to get by default properties `email` and `name`.
+            $email = null;
+            $name = null;
+            // default.
+            // if model implements MailjetableModel, we can use the defined methods to get recipient data.
+            if ($notifiable instanceof MailjetableModel) {
+                list('email' => $email, 'name' => $name) = $notifiable->mailjetableRecipient();
+            }
+            // alternative.
+            // try to get by default properties `email` and `name`.
             else {
                 try {
-                    // @todo: maybe set a conversion in config.mailjet.env.model.classname.email => 'email', etc.
                     $email = $notifiable->email;
                     $name = $notifiable->name;
                 } catch (\Exception $e) {
