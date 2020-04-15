@@ -44,26 +44,6 @@ class WebhookClient extends Controller {
     const EVENT_UNSUB = 'unsub';
 
     /**
-     * Publish routes to the API middleware.
-     * @note: webhook client URL will be https://domain.com/api/mailjet/webhook and https://domain.com/api/mailjet/webhook/event
-     *          for each subsequent direct event call.
-     */
-    public static function publishRoutes() {
-        Route::group(['middleware' => 'api', 'prefix' => 'mailjet'], function() {
-            // main: indirect call to all events.
-            Route::any('webhook', 'App\Mailjet\WebhookClient@index');
-            //  direct call to each event.
-            Route::any('webhook/blocked', 'App\Mailjet\WebhookClient@onBlocked');
-            Route::any('webhook/bounce', 'App\Mailjet\WebhookClient@onBounce');
-            Route::any('webhook/click', 'App\Mailjet\WebhookClient@onClick');
-            Route::any('webhook/open', 'App\Mailjet\WebhookClient@onOpen');
-            Route::any('webhook/sent', 'App\Mailjet\WebhookClient@onSent');
-            Route::any('webhook/spam', 'App\Mailjet\WebhookClient@onSpam');
-            Route::any('webhook/unsub', 'App\Mailjet\WebhookClient@onUnsub');
-        });
-    }
-
-    /**
      * Centralized call, e.g. https://domain.com/api/mailjet/webhook
      * @param Request $Request
      * @return mixed
