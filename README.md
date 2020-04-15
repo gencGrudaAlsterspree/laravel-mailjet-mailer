@@ -2,7 +2,7 @@
 
 ### Status
 
-0.1 - first working protoype
+v1.1.1 - first working protoype
 
 <br />
 
