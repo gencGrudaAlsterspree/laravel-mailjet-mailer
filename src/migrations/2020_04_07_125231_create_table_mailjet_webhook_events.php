@@ -24,7 +24,7 @@ class CreateTableMailjetWebhookEvents extends Migration {
         });
 
         Schema::table('mailjet_webhook_events', function (Blueprint $table) {
-            $table->index('custom_id');
+            $table->index('mailjet_request_id');
             $table->index('mailjet_id');
             $table->index('mailjet_uuid');
             $table->index('event');
