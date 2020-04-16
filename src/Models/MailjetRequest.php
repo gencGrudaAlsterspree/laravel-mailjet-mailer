@@ -71,7 +71,7 @@ class MailjetRequest extends Model {
     /**
      * @var string
      */
-    protected $queue_queue = 'default';
+    protected $queue_queue = null;
 
     /**
      * @var int|null
@@ -239,10 +239,10 @@ class MailjetRequest extends Model {
      * @param $delay
      * @return $this
      */
-    public function queue($connection = null, $queue = 'defaul', $delay = null) {
+    public function queue($connection = null, $queue = null, $delay = null) {
         if(is_array($connection)) {
-            $queue = isset($connection['queue']) ? $connection['queue'] : $queue;
             $delay = isset($connection['delay']) ? $connection['delay'] : $delay;
+            $queue = isset($connection['queue']) ? $connection['queue'] : $queue;
             $connection = isset($connection['connection']) ? $connection['connection'] : null;
         }
 
@@ -598,7 +598,7 @@ class MailjetRequest extends Model {
                 $queue['connection'] = $this->queue_connection;
             }
             if(!empty($this->hasQueueQueue())) {
-                $queue['connection'] = $this->queue_queue;
+                $queue['queue'] = $this->queue_queue;
             }
             if(!empty($this->hasQueueDelay())) {
                 $queue['delay'] = $this->queue_delay;
