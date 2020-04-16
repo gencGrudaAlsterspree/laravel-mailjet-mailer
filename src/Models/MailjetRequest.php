@@ -239,7 +239,7 @@ class MailjetRequest extends Model {
      * @param $delay
      * @return $this
      */
-    public function queue($connection = null, $queue = null, $delay = null) {
+    public function queue($connection = null, $queue = 'default', $delay = null) {
         if(is_array($connection)) {
             $delay = isset($connection['delay']) ? $connection['delay'] : $delay;
             $queue = isset($connection['queue']) ? $connection['queue'] : $queue;
