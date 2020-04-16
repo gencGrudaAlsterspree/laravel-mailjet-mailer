@@ -2,6 +2,7 @@
 
 namespace WizeWiz\MailjetMailer;
 
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 class MailjetMailerServiceProvider extends ServiceProvider {
@@ -11,7 +12,9 @@ class MailjetMailerServiceProvider extends ServiceProvider {
      *
      * @return void
      */
-    public function register() {}
+    public function register() {
+         Event::subscribe(Listeners\MailjetWebhookEventSubscriber::class);
+    }
 
     /**
      * Bootstrap services.
