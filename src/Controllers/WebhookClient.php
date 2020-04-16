@@ -3,19 +3,15 @@
 namespace WizeWiz\MailjetMailer\Controllers;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Response;
 use WizeWiz\MailjetMailer\Events\{
-    WebhookClickEvent,
-    WebhookUnknownEvent,
-    WebhookUnsubEvent,
-    WebhookOpenEvent,
-    WebhookSentEvent,
-    WebhookSpamEvent,
-    WebhookBounceEvent,
-    WebhookBlockedEvent
+    WebhookUnknownEvent
 };
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Log;
+use WizeWiz\MailjetMailer\Exceptions\Webhook\InvalidEventDataException;
+use WizeWiz\MailjetMailer\Exceptions\Webhook\InvalidEventException;
+use WizeWiz\MailjetMailer\Exceptions\Webhook\InvalidPayloadException;
+use WizeWiz\MailjetMailer\Exceptions\Webhook\WebhookException;
 use WizeWiz\MailjetMailer\Models\MailjetRequest;
 
 /**
@@ -32,10 +28,9 @@ class WebhookClient extends Controller {
 
     const VALID_EVENTS = ['bounce', 'blocked', 'click', 'open', 'spam', 'sent', 'unsub'];
 
-    const RESPONSE_ERROR = 'ok-but-error';
+    const RESPONSE_ERROR = 'error';
     const RESPONSE_OK = 'ok';
-    const EVENT_UNKNOWN = 'unknown';
-    const EVENT_INVALID = 'invalid';
+    const EVENT_NAME_UNKNOWN = 'unknown';
 
     const EVENT_BLOCKED = 'blocked';
     const EVENT_BOUNCE = 'bounce';
@@ -51,20 +46,18 @@ class WebhookClient extends Controller {
      * @return mixed
      */
     public function index(Request $Request) {
-        /*
-         * @todo: Mailjet does not seem to send a token to verify the payload.
-            $headers = collect($Request->header())->transform(function ($item) {
-                return $item[0];
-            });
-         */
+        return $this->handleEvents($Request->all());
+    }
 
-        try {
-            return $this->handleEvents($Request->all());
-        } catch(\Exception $e) {
-            //  @todo: we should count the many repeats to not flood the server. Mailjet will try to resend the request
-            //          every 30s for the next 24h.
-            return response(static::RESPONSE_ERROR, 500);
-        }
+    /**
+     * Direct event call, e.g. https://domain.com/api/mailjet/webhook/event-name
+     * @param string $method
+     * @param array $parameters
+     * @return mixed
+     */
+    public function __call($method, $parameters) {
+        $events = isset($parameters[0]) ? $parameters[0] : [];
+        return $this->handleEvents((array)$events);
     }
 
     /**
@@ -73,43 +66,35 @@ class WebhookClient extends Controller {
      *
      */
     public function handleEvents(array $events) {
-        foreach($events as $event) {
-            // just skip this event if it wasn't send by us.
-            if($this->verifyEvent($event) === false) {
-                continue;
+        try {
+            foreach ($events as $event) {
+                // just skip this event if it wasn't send by us.
+                if ($this->verifyEvent($event) === false) {
+                    continue;
+                }
+                $event_name = isset($event['event']) ? $event['event'] : static::EVENT_NAME_UNKNOWN;
+                $response = $this->onEvent($event_name, $event);
             }
-            $event_name = isset($event['event']) ? $event['event'] : static::EVENT_UNKNOWN;
-            $response = $this->onEvent($event_name, $event);
-        }
-        // unknown or 1 event.
-        switch(count($events)) {
-            case 0:
-                return response(static::EVENT_UNKNOWN, 200);
-                break;
-            case 1:
-                return $response;
-                break;
+            switch (count($events)) {
+                // unknown event ..
+                case 0:
+                    return $this->response(static::EVENT_NAME_UNKNOWN);
+                    break;
+                // one event, all good ..
+                case 1:
+                    return $response;
+                    break;
+            }
+        } catch(WebhookException $e) {
+            return $e->response();
+        } catch(\Throwable $e) {
+            // return default response.
+            return $this->response(static::RESPONSE_ERROR);
         }
         // multiple events, just return 'ok'.
-        return response(static::RESPONSE_OK, 200);
+        return $this->response(static::RESPONSE_OK);
     }
 
-    /**
-     * Direct event call, e.g. https://domain.com/api/mailjet/webhook/event
-     * @param string $method
-     * @param array $parameters
-     * @return mixed
-     */
-    public function __call($method, $parameters) {
-        try {
-            $events = isset($parameters[0]) ? $parameters[0] : [];
-            return $this->handleEvents((array)$events);
-        } catch(\Exception $e) {
-            //  @todo: we should count the many repeats to not flood the server. Mailjet will try to resend the request
-            //          every 30s for the next 24h.
-            return response(static::RESPONSE_ERROR, 500);
-        }
-    }
 
     /**
      * Verify payload.
@@ -118,19 +103,16 @@ class WebhookClient extends Controller {
      */
     protected function verifyEvent($event) : bool {
         if(empty($event) || !is_array($event)) {
-            Log::info('unable to verify event content.');
-            return false;
+            throw new InvalidEventDataException();
         }
         // verify event refers to a request made by us.
         if(isset($event['CustomID'])) {
             if(MailjetRequest::whereId($event['CustomID'])->count() === 0) {
-                Log::info('unable to verify payload.');
-                return false;
+                throw new InvalidPayloadException();
             }
         }
         if($this->validEvent($event['event']) === false) {
-            Log::info('unable to validate event.');
-            return false;
+            throw new InvalidEventException();
         }
         return true;
     }
@@ -144,35 +126,6 @@ class WebhookClient extends Controller {
         return in_array($event, static::VALID_EVENTS);
     }
 
-
-    /**
-     * Do something when payload is invalid.
-     * @return \Illuminate\Contracts\Routing\ResponseFactory|\Illuminate\Http\Response
-     */
-    protected function invalidPayload() {
-        try {
-            // for exception sake ..
-            throw new \Exception('MailjetWebhookClient: invalid payload');
-        } catch(\Exception $e) {
-            return response('INVALID_PAYLOAD', 200);
-        }
-    }
-
-    /**
-     * Unexpected event was called.
-     * @param $data
-     * @param $event_expected
-     * @return \Illuminate\Contracts\Routing\ResponseFactory|\Illuminate\Http\Response
-     */
-    protected function invalidEvent($event_called, $event_expected) {
-        try {
-            // for exception sake ..
-            throw new \Exception("MailjetWebhook: Received invalid event {$event_called}, expected event {$event_expected}.");
-        } catch(\Exception $e) {
-            return response(static::EVENT_INVALID, 200);
-        }
-    }
-
     /**
      * On open event.
      * @param $event
@@ -183,8 +136,8 @@ class WebhookClient extends Controller {
     public function onEvent($event, array $data, $direct_call = true) {
         // trigger the event.
         $this->triggerEvent($event, $data);
-        // we return 200 because we don't want Mailjet to repeat this every 30s for 24h!
-        return response($event, 200);
+        // return ok
+        return $this->response(static::RESPONSE_OK . '-' . $event);
     }
 
     /**
@@ -194,13 +147,20 @@ class WebhookClient extends Controller {
      */
     protected function triggerEvent($event, array $data) {
         $event_class = "WizeWiz\MailjetMailer\Events\Webhook".ucfirst($event)."Event";
-        if(class_exists($event_class)) {
-            $event_object = new $event_class($data);
-        }
-        else {
-            $event_object = new WebhookUnknownEvent($data);
-        }
+            $event_object = class_exists($event_class) ?
+                new $event_class($data) :
+                new WebhookUnknownEvent($data);
 
         event($event_object);
+    }
+
+    /**
+     * Return response.
+     * @param $msg
+     * @param int $code
+     * @return Response
+     */
+    protected function response($msg, $code = Response::HTTP_OK) {
+        return response($msg, $code);
     }
 }
