@@ -280,7 +280,8 @@ class Mailer {
         // update request with response.
         $Request->updateFromResponse($error, $MailerResponse, $LibResponse);
         // analyze data
-        $MailerResponse->analyze($this);
+        // @todo: do we still need analyze?
+        // $MailerResponse->analyze($this);
         // return response
         return $MailerResponse;
     }

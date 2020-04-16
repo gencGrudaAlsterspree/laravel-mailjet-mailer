@@ -57,10 +57,10 @@ abstract class MailerResponse {
      * @todo: create models instead.
      */
     public function analyze() {
-        if(empty($this->messages_data)) {
+        // if(empty($this->messages_data)) {
             // @todo: custom exception
-            throw new \Exception(get_class($this) . ' needs to be constructed.');
-        }
+        //    throw new \Exception(get_class($this) . ' needs to be constructed.');
+        // }
         // structure is valid
         // @todo: let MailerResponse3/31 decide structure validity
         // if(!$this->isValid()) {
