@@ -76,4 +76,12 @@ class MailjetJobRequest implements ShouldQueue {
             Log::info($e->getFile() . ' : ' . $e->getLine());
         }
     }
+
+    /**
+     * Get the tags that should be assigned to the job.
+     * @return array
+     */
+    public function tags() {
+        return ['mailjet-mailer', 'mail', 'request:' . $this->Request->id];
+    }
 }
