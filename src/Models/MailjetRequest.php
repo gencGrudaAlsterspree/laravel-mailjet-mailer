@@ -415,8 +415,8 @@ class MailjetRequest extends Model {
     protected function recipient($email, $name) {
         $recipients = $this->recipients;
         $recipients[] = [
-            'Email' => $email,
-            'Name' => $name
+            'email' => $email,
+            'name' => $name
         ];
         $this->attributes['recipients'] = json_encode($recipients);
     }
@@ -443,7 +443,7 @@ class MailjetRequest extends Model {
      * @return bool
      */
     public function hasRecipient($email) : bool {
-        $index = array_search($email, array_column($this->recipients, 'Email'));
+        $index = array_search($email, array_column($this->recipients, 'email'));
         return $index !== false;
     }
 
@@ -549,6 +549,75 @@ class MailjetRequest extends Model {
     }
 
     /**
+     * Gather all recipients, check if recipients needs to be intercepted.
+     */
+    public function gatherRecipients() {
+        if(($interceptor = $this->shouldIntercept()) !== false) {
+            $whitelist = isset($interceptor['whitelist']) ? $interceptor['whitelist'] : [
+                'emails' => [],
+                'domains' => []
+            ];
+
+            $emails = isset($whitelist['emails']) ? $whitelist['emails'] : [];
+            $domains = isset($whitelist['domains']) ? $whitelist['domains'] : [];
+            // @todo: exception if empty?
+            $to = isset($interceptor['to']) ? $interceptor['to'] : [];
+
+            $recipients = [];
+            foreach($this->getRecipients() as $index => $recipient) {
+                if($this->blackListed($recipient['email'], $emails, $domains)) {
+                    // intercept recipient.
+                    $recipients[$index ] = [
+                        'email' => $to['email'],
+                        'name' => $to['name'] . " ({$recipient['name']}:{$recipient['email']})"
+                    ];
+                }
+                else {
+                    $recipients[$index] = $recipient;
+                }
+            }
+            // set new recipients.
+            $this->attributes['recipients'] = json_encode($recipients);
+        }
+        return $this->recipients;
+    }
+
+    /**
+     * If recipient is black listed.
+     * @param $email
+     * @param array $emails
+     * @param array $domains
+     * @return bool
+     */
+    public function blackListed($email, array $emails, array $domains) {
+        if($emails && in_array($email, $emails)) {
+            // whitelisted
+            return false;
+        }
+        if($domains && (
+            ( $split = explode('@', $email) ) &&
+            // second index should be the domain
+            isset($split[1]) && in_array($split[1], $domains)
+        )) {
+            // whitelisted
+            return false;
+        }
+        // blacklisted
+        return true;
+    }
+
+    /**
+     * Should E-Mail be intercepted by modifying the recipient.
+     */
+    protected function shouldIntercept() {
+        $interceptor = config(Mailer::CONFIG . '.interceptor', false);
+        if($interceptor && isset($interceptor['enabled']) && $interceptor['enabled'] === true) {
+            return $interceptor;
+        }
+        return false;
+    }
+
+    /**
      * Return notifiables.
      * @return array
      */
@@ -628,7 +697,7 @@ class MailjetRequest extends Model {
                 // create a message for each recipient.
                 foreach($this->recipients as $recipient) {
 
-                    $email = $recipient['Email'];
+                    $email = $recipient['email'];
                     $message = new MailjetMessage([
                         'mailjet_request_id' => $this->id,
                         'email' => $email,
@@ -713,10 +782,11 @@ class MailjetRequest extends Model {
      * resource: https://dev.mailjet.com/email/guides/send-api-V3/
      */
     protected function buildBodyVersion3() : array {
+        // @todo: implement v3 Send API
         $body = [];
         $message = [];
 
-        $message['Mj-CustomID'] = static::generateCustomId();
+        $message['Mj-CustomID'] = '';
 
         return $body;
     }
@@ -733,9 +803,18 @@ class MailjetRequest extends Model {
         // create message
         $message = [
             'From' => $this->sender,
-            'To' => $this->recipients,
+            'To' => [],
             'Subject' => $this->subject
         ];
+
+        // set recipients.
+        foreach($this->gatherRecipients() as $recipient) {
+            $message['To'][] = [
+                'Email' => $recipient['email'],
+                'Name' => $recipient['name']
+            ];
+        }
+
         // set template
         if(!empty($this->template_id)) {
             $message['TemplateID'] = $this->template_id;
@@ -775,6 +854,7 @@ class MailjetRequest extends Model {
     protected function findNotifiable($email) {
         try {
             $user_model = $this->getUserModel();
+            // @todo: get method to retrieve email attribute from model.
             return $user_model::whereEmail($email)->first();
         } catch(\Exception $e) {
             return null;

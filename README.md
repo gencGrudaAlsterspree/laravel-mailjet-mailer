@@ -249,7 +249,7 @@ The `MailjetRequest` class has several methods to add a notifiable:
 
 ```php
 public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequest  {
-	$Request
+	return $Request
 		->notify($notifiable)
 		// add user with ID 100.
 		->notify(User::find(100));
@@ -260,7 +260,7 @@ Also a recpient e-mail and name can be added to the recipients list:
 
 ```php
 public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequest  {
-	$Request->recipient('admin@example.com', 'Administrator');
+	return $Request->recipient('admin@example.com', 'Administrator');
 }
 ```
 
@@ -276,7 +276,7 @@ public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Reques
 	$queue = 'mail';
 	$delay = 60;
 	// put request on a queue.
-	$Request->queue($connection, $queue, $delay);
+	return $Request->queue($connection, $queue, $delay);
 }
 
 ```

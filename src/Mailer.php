@@ -77,6 +77,7 @@ class Mailer {
     }
 
     /**
+     * Get configuration option.
      * @param $option
      * @return null
      */
@@ -103,34 +104,31 @@ class Mailer {
     }
 
     /**
+     * Configure E-Mail.
+     *
      * @param $environment
      * @return mixed
      */
-    protected function configure($environment) {
+    public function configure($environment, $counter = 0) {
+        // detect infinit loop.
+        if($counter > 5) {
+            throw new \Exception('possible infinit loop detected.');
+        }
         // get config.
         $config = config(static::CONFIG);
-        // load config.
-        if(isset($config[$environment])) {
-            $config = $config[$environment];
+        $environments = isset($config['environments']) ? $config['environments'] : [];
+        $aliases = isset($config['aliases']) ? $config['aliases'] : [];
+
+        // load with alias.
+        if(isset($aliases[$environment])) {
+            return $this->configure($aliases[$environment], $counter++);
         }
-        else {
-            if(!isset($config['default'])) {
-                // @todo: create custom exception.
-                throw new Exception('mailjet.php required default config.');
-            }
-            $config = $config['default'];
+
+        if(isset($environments[$environment])) {
+            return $this->config = $environments[$environment];
         }
-        // if config is an alias.
-        if(is_string($config)) {
-            if(config(static::CONFIG.".{$config}") === null) {
-                // @todo: create custom exception.
-                throw new Exception("config to alias {$config} does not exist.");
-            }
-            // re-run configure again with given alias.
-            return $this->configure($config);
-        }
-        // save config
-        return $this->config = $config;
+
+        throw new \Exception('unable to set settings for environment: ' . $environment);
     }
 
     /**
