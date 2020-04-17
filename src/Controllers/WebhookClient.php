@@ -102,17 +102,25 @@ class WebhookClient extends Controller {
      * @return bool
      */
     protected function verifyEvent($event) : bool {
-        if(empty($event) || !is_array($event)) {
+        if(
+            empty($event) ||
+            !is_array($event) ||
+            // check if event name was given.
+            (isset($event['event']) && empty($event['event'])) ||
+            // check if message id was given.
+            (isset($event['MessageID']) && empty($event['MessageID'])) ||
+            // check if custom id was given.
+            (isset($event['CustomID']) && empty($event['CustomID']))
+        ) {
             throw new InvalidEventDataException();
         }
-        // verify event refers to a request made by us.
-        if(isset($event['CustomID'])) {
-            if(MailjetRequest::whereId($event['CustomID'])->count() === 0) {
-                throw new InvalidPayloadException();
-            }
-        }
+        // very event name is a valid event.
         if($this->validEvent($event['event']) === false) {
             throw new InvalidEventException();
+        }
+        // verify event refers to a request made by us.
+        if(MailjetRequest::whereId($event['CustomID'])->count() === 0) {
+            throw new InvalidPayloadException();
         }
         return true;
     }
