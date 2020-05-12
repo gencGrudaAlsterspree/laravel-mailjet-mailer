@@ -3,16 +3,16 @@
 namespace WizeWiz\MailjetMailer\Notifications;
 
 use WizeWiz\MailjetMailer\Channels\MailjetChannel;
+use WizeWiz\MailjetMailer\Collections\MailjetRequestCollection;
 use WizeWiz\MailjetMailer\Contracts\MailjetMessageable;
 use WizeWiz\MailjetMailer\Contracts\MailjetNotificationable;
-use Illuminate\Bus\Queueable;
 use WizeWiz\EnhancedNotifications\Notifications\Notification;
 use Illuminate\Notifications\Notification as LaravelNotification;
+use WizeWiz\MailjetMailer\Contracts\MailjetRequestable;
 use WizeWiz\MailjetMailer\Mailer;
 use WizeWiz\MailjetMailer\Models\MailjetRequest;
 
 abstract class MailjetNotification extends Notification implements MailjetNotificationable {
-    use Queueable;
 
     /**
      * E-Mail subject.
@@ -70,7 +70,7 @@ abstract class MailjetNotification extends Notification implements MailjetNotifi
      * @param mixed $notifiable
      * @return array
      */
-    public function via() {
+    public function via($notifiable) {
         return [
             // make sure notification gets created before Mailjet channel kicks in. Mailjet/Mailer sends the
             // notification::id as the CustomID property for reference.
@@ -89,25 +89,39 @@ abstract class MailjetNotification extends Notification implements MailjetNotifi
      */
     public function processMailjet(MailjetMessageable $notifiable, LaravelNotification $notification, MailjetRequest $Request) {
         // call implement toMailjet channel method to apply custom content.
-        $Request = $this->toMailjet($notifiable, $Request);
-        // if notfiable or recipient not set, add notfiable
-        if(empty($Request->getRecipients()) && empty($Request->getNotifiables())) {
-            $Request->notify($notifiable);
+        $Requestable = $this->toMailjet($notifiable, $Request);
+
+        // verify notifiable was added.
+        if($Requestable instanceof MailjetRequest) {
+            // if notifiable or recipient not set, add notfiable
+            if (empty($Requestable->getRecipients()) && empty($Requestable->getNotifiables())) {
+                $Requestable->notify($notifiable);
+            }
         }
-        // @todo: check if recipients or notifiables are empty.
+
         // prepare Mailer to send if not already send.
-        if($Request->isSent() === false) {
-            // set predefined subject
-            // @todo: $this->subject should work as well.
-            $Request->subject($notification->getSubject());
-            // set predifined template
-            // @todo: $this->template_name should work as well
-            $Request->template($notification->getTemplateName());
-            // set variables with variable defaults
-            // @todo: $this->default_variables should work as well.
-            $Request->variables(array_merge($notification->getDefaultVariables(), $Request->variables));
+        if($Requestable->isSent() === false) {
+
+            // @todo: think of a way to automatically add template settings (and or subject) from MailjetNotification when
+            //          $Requestable is a MailjetRequestCollection.
+            // @note: quick solution.
+            if(!$Requestable instanceof MailjetRequestCollection) {
+                $Requestable = $Requestable->toCollection();
+            }
+
+            // if($Requestable instanceof MailjetRequest) {
+            foreach($Requestable as $Request) {
+                // set predefined subject
+                if(empty($Request->subject) && !empty( ($subject = $notification->getSubject()) )) {
+                    $Request->subject($subject);
+                }
+                // set predifined template
+                if(empty($Request->template_name) && !empty( ($template_name = $notification->getTemplateName()) )) {
+                    $Request->template($template_name);
+                }
+            }
             // send request.
-            Mailer::send($Request);
+            (new Mailer())->send($Requestable);
         }
     }
 
@@ -117,5 +131,5 @@ abstract class MailjetNotification extends Notification implements MailjetNotifi
      * @param MailjetRequest $Request
      * @return Mailer
      */
-    abstract public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequest;
+    abstract public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequestable;
 }
