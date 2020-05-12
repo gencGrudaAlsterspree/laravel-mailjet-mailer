@@ -19,6 +19,11 @@
             "WizeWiz\\MailjetMailer\\": "src"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "WizeWiz\\MailjetMailer\\Tests\\": "tests"
+        }
+    },
     "extra": {
         "laravel": {
             "providers": [

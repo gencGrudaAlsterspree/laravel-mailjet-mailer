@@ -2,6 +2,7 @@
 
 namespace WizeWiz\MailjetMailer\Jobs;
 
+use WizeWiz\MailjetMailer\Contracts\MailjetRequestable;
 use WizeWiz\MailjetMailer\Mailer;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -19,9 +20,9 @@ class MailjetJobRequest implements ShouldQueue {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
-     * @var MailjetRequest
+     * @var MailjetRequestable
      */
-    public $Request;
+    public $Requests;
 
     /**
      * @var array
@@ -30,23 +31,23 @@ class MailjetJobRequest implements ShouldQueue {
 
     /**
      * Create a new job instance.
-     * @param MailjetRequest $Request
+     * @param MailjetRequestable $Requests
      * @param array $options
      * @return void
      */
-    public function __construct(MailjetRequest $Request, array $options = []) {
-        if($Request->shouldQueue()) {
-            $this->setQueue($Request);
+    public function __construct(MailjetRequestable $Requests, array $options = []) {
+        if($Requests->shouldQueue()) {
+            $this->setQueue($Requests);
         }
-        $this->Request = $Request;
+        $this->Requests = $Requests;
         $this->options = $options;
     }
 
     /**
      * Configure queue if $Request should be queued.
-     * @param MailjetRequest $Request
+     * @param MailjetRequestable $Request
      */
-    private function setQueue(MailjetRequest $Request) {
+    private function setQueue(MailjetRequestable $Request) : void {
         if($Request->hasQueueConnection()) {
             $this->onConnection($Request->getQueueConnection());
         }
@@ -66,9 +67,9 @@ class MailjetJobRequest implements ShouldQueue {
     public function handle() {
         try {
             // reinitialize model when job runs
-            $this->Request->reinitialize();
+            $this->Requests->reinitialize();
             // process request.
-            (new Mailer())->process($this->Request, $this->options);
+            (new Mailer())->process($this->Requests, $this->options);
         } catch(\Exception $e) {
             // @todo: handle Exception, requeue, send to backup, etc.
             Log::info('MailjetJobRequest::catch');
@@ -82,6 +83,6 @@ class MailjetJobRequest implements ShouldQueue {
      * @return array
      */
     public function tags() {
-        return ['mailjet-mailer', 'mail', 'request:' . $this->Request->id];
+        return ['mailjet-mailer', 'mail', 'request:' . $this->Requests->id];
     }
 }

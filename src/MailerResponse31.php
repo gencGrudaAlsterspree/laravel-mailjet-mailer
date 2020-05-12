@@ -3,9 +3,8 @@
 namespace WizeWiz\MailjetMailer;
 
 use App\Model\MailjetMessage;
-use Illuminate\Support\Facades\Log;
 use Mailjet\Response as MailjetResponse;
-use WizeWiz\MailjetMailer\Models\MailjetRequest;
+use WizeWiz\MailjetMailer\Contracts\MailjetRequestable;
 
 class MailerResponse31 extends MailerResponse {
 
@@ -13,9 +12,9 @@ class MailerResponse31 extends MailerResponse {
      * MailerResponse31 constructor.
      * @param MailjetResponse $Response
      */
-    public function __construct(MailjetRequest $Request, MailjetResponse $Response) {
+    public function __construct(MailjetRequestable $Requests, MailjetResponse $Response) {
         // pass on response data and set Send API version
-        parent::__construct($Request, $Response, Mailer::VERSION_31);
+        parent::__construct($Requests, $Response, Mailer::VERSION_31);
     }
 
     /**

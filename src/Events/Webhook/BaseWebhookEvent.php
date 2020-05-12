@@ -1,6 +1,6 @@
 <?php
 
-namespace WizeWiz\MailjetMailer\Events;
+namespace WizeWiz\MailjetMailer\Events\Webhook;
 
 use WizeWiz\MailjetMailer\Models\MailjetWebhookEvent;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -8,10 +8,21 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-abstract class WebhookEvent implements ShouldBroadcastNow {
+abstract class BaseWebhookEvent implements ShouldBroadcastNow {
     use Dispatchable, SerializesModels;
 
     public $data;
+
+    const EVENT_BLOCKED = 'blocked';
+    const EVENT_BOUNCE = 'bounce';
+    const EVENT_CLICK = 'click';
+    const EVENT_OPEN = 'open';
+    const EVENT_SENT = 'sent';
+    const EVENT_SPAM = 'spam';
+    const EVENT_UNSUB = 'unsub';
+
+    const EVENT_NONE = 'none';
+    const EVENT_WAITING = 'waiting';
 
     /**
      * WebhookEvent constructor.
@@ -37,7 +48,9 @@ abstract class WebhookEvent implements ShouldBroadcastNow {
             ]);
         // silently fail
         } catch(\Exception $e) {
-            Log::info($e->getMessage());
+            Log::info('in BaseWebhookEvent exception?');
+            var_dump($e->getMessage());
+            var_dump($e->getFile() . ' @ ' . $e->getCode());
         }
     }
 

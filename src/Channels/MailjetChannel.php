@@ -14,7 +14,7 @@ class MailjetChannel {
      * @return void
      */
     public function send($notifiable, Notification $notification) {
-        $notification->processMailjet($notifiable, $notification, Mailer::newRequest());
+        $notification->processMailjet($notifiable, $notification, (new Mailer())->newRequest());
     }
 
 }

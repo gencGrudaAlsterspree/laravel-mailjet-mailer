@@ -3,7 +3,7 @@
 namespace WizeWiz\MailjetMailer;
 
 use Mailjet\Response as MailjetResponse;
-use WizeWiz\MailjetMailer\Models\MailjetRequest;
+use WizeWiz\MailjetMailer\Contracts\MailjetRequestable;
 
 class MailerResponse3 extends MailerResponse {
 
@@ -11,9 +11,9 @@ class MailerResponse3 extends MailerResponse {
      * MailerResponse3 constructor.
      * @param MailjetResponse $Response
      */
-    public function __construct(MailjetRequest $Request, MailjetResponse $Response) {
+    public function __construct(MailjetRequestable $Requests, MailjetResponse $Response) {
         // pass on response data and set Send API version
-        parent::__construct($Request, $Response, Mailer::VERSION_3);
+        parent::__construct($Requests, $Response, Mailer::VERSION_3);
     }
 
     /**
@@ -30,15 +30,6 @@ class MailerResponse3 extends MailerResponse {
     public function isValid() : bool {
         // TODO: Implement isValid() method.
         return true;
-    }
-
-    /**
-     * Inspect response data according to Send API v3
-     * @param Mailer|null $Mailer
-     * @return array
-     */
-    public function analyze() : void {
-        return [];
     }
 
     /**

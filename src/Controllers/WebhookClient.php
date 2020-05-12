@@ -4,8 +4,9 @@ namespace WizeWiz\MailjetMailer\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Response;
-use WizeWiz\MailjetMailer\Events\{
-    WebhookUnknownEvent
+use Illuminate\Support\Facades\Log;
+use WizeWiz\MailjetMailer\Events\Webhook\{
+    UnknownEvent
 };
 use Illuminate\Http\Request;
 use WizeWiz\MailjetMailer\Exceptions\Webhook\InvalidEventDataException;
@@ -31,14 +32,6 @@ class WebhookClient extends Controller {
     const RESPONSE_ERROR = 'error';
     const RESPONSE_OK = 'ok';
     const EVENT_NAME_UNKNOWN = 'unknown';
-
-    const EVENT_BLOCKED = 'blocked';
-    const EVENT_BOUNCE = 'bounce';
-    const EVENT_CLICK = 'click';
-    const EVENT_OPEN = 'open';
-    const EVENT_SENT = 'sent';
-    const EVENT_SPAM = 'spam';
-    const EVENT_UNSUB = 'unsub';
 
     /**
      * Centralized call, e.g. https://domain.com/api/mailjet/webhook
@@ -88,6 +81,9 @@ class WebhookClient extends Controller {
         } catch(WebhookException $e) {
             return $e->response();
         } catch(\Throwable $e) {
+            // @todo: search for a debug solution.
+            var_dump($e->getMessage());
+            var_dump($e->getFile() . ' @ ' . $e->getLine());
             // return default response.
             return $this->response(static::RESPONSE_ERROR);
         }
@@ -103,14 +99,14 @@ class WebhookClient extends Controller {
      */
     protected function verifyEvent($event) : bool {
         if(
-            empty($event) ||
-            !is_array($event) ||
+            (empty($event) ||
+            !is_array($event)) ||
             // check if event name was given.
-            (isset($event['event']) && empty($event['event'])) ||
+            (!isset($event['event']) || empty($event['event'])) ||
             // check if message id was given.
-            (isset($event['MessageID']) && empty($event['MessageID'])) ||
+            (!isset($event['MessageID']) || empty($event['MessageID'])) ||
             // check if custom id was given.
-            (isset($event['CustomID']) && empty($event['CustomID']))
+            (!isset($event['CustomID']) || empty($event['CustomID']))
         ) {
             throw new InvalidEventDataException();
         }
@@ -154,10 +150,10 @@ class WebhookClient extends Controller {
      * @param array $data
      */
     protected function triggerEvent($event, array $data) {
-        $event_class = "WizeWiz\MailjetMailer\Events\Webhook".ucfirst($event)."Event";
+        $event_class = 'WizeWiz\MailjetMailer\Events\Webhook\\'.ucfirst($event)."Event";
             $event_object = class_exists($event_class) ?
                 new $event_class($data) :
-                new WebhookUnknownEvent($data);
+                new UnknownEvent($data);
 
         event($event_object);
     }

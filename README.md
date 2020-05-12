@@ -2,7 +2,7 @@
 
 #### Status
 
-v1.2.1 (2020-17-04) - in-development
+v1.3 (2020-12-05) - in-development
 
 ### About this package
 
@@ -39,7 +39,7 @@ A third property can be added to select a backup option:
 MAILJET_MAILER_BACKUP=smtp
 ```
 
-See [Backup driver](#backup-driver) for more information.
+See [Backup driver](#backup-driver)<!-- @IGNORE PREVIOUS: anchor --> for more information.
 
 #### Config
 
@@ -218,7 +218,7 @@ class RegisterNotification extends Notification {
      * @param MailjetRequest $Request
      * @return MailjetRequest
      */
-    public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequest  {
+    public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequestable  {
         return $Request
             // template defined in our config/mailjet-mailer.php.
             ->template('register')
@@ -248,7 +248,7 @@ class RegisterNotification extends Notification {
 The `MailjetRequest` class has several methods to add a notifiable:
 
 ```php
-public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequest  {
+public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequestable  {
 	return $Request
 		->notify($notifiable)
 		// add user with ID 100.
@@ -259,7 +259,7 @@ public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Reques
 Also a recpient e-mail and name can be added to the recipients list:
 
 ```php
-public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequest  {
+public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequestable  {
 	return $Request->recipient('admin@example.com', 'Administrator');
 }
 ```
@@ -271,7 +271,7 @@ If the email is found in the `users` table, the user will be automatically inclu
 If a queue should be used, all options for a queue are available:
 
 ```php
-public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequest  {
+public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequestable  {
 	$connection = 'redis';
 	$queue = 'mail';
 	$delay = 60;

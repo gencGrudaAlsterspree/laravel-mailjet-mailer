@@ -1,9 +1,11 @@
 <?php
 
-// @todo: organize for default config
 return [
 
-    'environments' => [
+    'environment' => env('APP_ENV', 'local'),
+    'account' => env('MAILJET_MAILER_ACCOUNT', 'default'),
+
+    'accounts' => [
         'default' => [
             'key' => env('MAILJET_APIKEY'),
             'secret' => env('MAILJET_APISECRET'),
@@ -14,12 +16,6 @@ return [
                 'name' => 'no-reply'
             ]
         ],
-    ],
-
-    'aliases' => [
-        'production' => 'default',
-        'development' => 'default',
-        'local' => 'default'
     ],
 
     'interceptor' => [
@@ -35,7 +31,7 @@ return [
             'domains' => []
         ],
 
-        // @todo:
+        // @todo: clear cc and bcc
         'clear' => [
             'cc' => true,
             'bbc' => true

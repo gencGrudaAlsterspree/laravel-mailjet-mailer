@@ -2,10 +2,8 @@
 
 namespace WizeWiz\MailjetMailer;
 
-use Illuminate\Support\Facades\Log;
 use Mailjet\Response as MailjetResponse;
-use WizeWiz\MailjetMailer\Contracts\MailjetMessageable;
-use WizeWiz\MailjetMailer\Models\MailjetRequest;
+use WizeWiz\MailjetMailer\Contracts\MailjetRequestable;
 
 /**
  * @todo: make queueable
@@ -20,7 +18,7 @@ abstract class MailerResponse {
     const STATUS_SUCCESS = 'success';
     const STATUS_ERROR = 'error';
 
-    protected $Request;
+    protected $Requests;
     protected $Response;
 
     protected $success;
@@ -39,68 +37,15 @@ abstract class MailerResponse {
      * @param MailjetResponse $Response
      * @param string $api_version
      */
-    public function __construct(MailjetRequest $Request, MailjetResponse $Response, $api_version) {
+    public function __construct(MailjetRequestable $Requests, MailjetResponse $Response, $api_version) {
         // set original MailjetResponse.
-        $this->Request= $Request;
+        $this->Requests = $Requests;
         $this->Response = $Response;
 
         // set properties
         $this->setProperties();
         // set api version
         $this->api_version = $api_version;
-    }
-
-    /**
-     * Inspect response data according to Send API v3.1
-     * @return bool
-     * @throws \Exception
-     * @todo: create models instead.
-     */
-    public function analyze() {
-        // if(empty($this->messages_data)) {
-            // @todo: custom exception
-        //    throw new \Exception(get_class($this) . ' needs to be constructed.');
-        // }
-        // structure is valid
-        // @todo: let MailerResponse3/31 decide structure validity
-        // if(!$this->isValid()) {
-            // @todo: custom exception
-        //    throw new \Exception('JSON structure from Mailjet/Response is not valid.');
-        // }
-
-        // if http status code is OK and message was success
-        if($this->http_status === static::HTTP_STATUS_OK && $this->success) {
-           // $this->messages = $this->setSuccess();
-           // $this->attachNotifiablesToMessages();
-            return true;
-        }
-        // handle errors
-        else {
-           // $this->errors = $this->setErrors();
-            return false;
-        }
-    }
-
-    /**
-     * Attach notifiables to messages (polymorphic).
-     */
-    public function attachNotifiablesToMessages() {
-        if(empty($this->messages) === false) {
-            foreach ($this->messages as $index => $message) {
-                if (isset($this->notifiables[$message->email])) {
-                    $notifiable = $this->notifiables[$message->email];
-                    if ($notifiable instanceof MailjetMessageable) {
-                        try {
-                            var_dump($message);
-                            // $notifiable->mailjet_messages()->save($message);
-                        } catch(\Exception $e) {
-                            Log::info('$notifiable mailjet_messages()->save');
-                            Log::info($e->getMessages());
-                        }
-                    }
-                }
-            }
-        }
     }
 
     /**
@@ -145,7 +90,7 @@ abstract class MailerResponse {
      * Return messages data.
      */
     public function data() {
-       return $this->messages_data;
+        return $this->messages_data;
     }
 
     /**
@@ -172,13 +117,33 @@ abstract class MailerResponse {
     }
 
     /**
-     * Return messages from Mailjet\Response.
+     * Return messages.
      * @return null|array
      */
     public function getMessages() {
         if($this->success()) {
-            return $this->Response->getBody();
+            if(isset($this->messages_data['Messages'])) {
+                return $this->messages_data['Messages'];
+            }
         }
+        return [];
+    }
+
+    /**
+     * Find message by email.
+     * @param $email
+     * @return bool
+     */
+    public function getMessageByEmail($email) {
+        foreach ($this->getMessages() as $index => $message) {
+            foreach(['To', 'Cc', 'Bcc'] as $receiver_type) {
+                if(isset($message[$receiver_type]) &&
+                    ($found_index = array_search($email, array_column($message[$receiver_type], 'Email'))) !== false) {
+                    return $message[$receiver_type][$found_index];
+                }
+            }
+        }
+        return false;
     }
 
     /**

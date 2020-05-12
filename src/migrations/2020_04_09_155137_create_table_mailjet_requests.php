@@ -16,10 +16,10 @@ class CreateTableMailjetRequests extends Migration {
 
         Schema::create('mailjet_requests', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('from_name')->nullable();
-            $table->string('from_email')->nullable();
+            $table->string('from_name');
+            $table->string('from_email');
             $table->json('recipients')->nullable();
-            $table->string('subject')->nullable();
+            $table->string('subject');
             $table->integer('template_id')->nullable();
             $table->string('template_name')->nullable();
             $table->boolean('template_language')->default(false);

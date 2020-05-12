@@ -2,23 +2,21 @@
 
 namespace WizeWiz\MailjetMailer;
 
-use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Log;
 use Mailjet\Resources;
 use Mailjet\Client as MailjetLibClient;
 use Mailjet\Response as MailjetLibResponse;
-use App\Contracts\Notifiable;
+use WizeWiz\MailjetMailer\Collections\MailjetRequestCollection;
+use WizeWiz\MailjetMailer\Contracts\MailjetRequestable;
 use WizeWiz\MailjetMailer\Models\MailjetRequest;
 
 /**
  * Mailjet wrapper for easy mangement of the Send API
  *
- * @todo: send messages with CustomID property.
- *
  * Class Mailer
  * @package App\Library
  */
-class Mailer {
+class Mailer implements Contracts\MailjetMailer {
 
     /**
      * @var bool
@@ -32,7 +30,7 @@ class Mailer {
         'v3.1'
     ];
     const DEFAULT_VERSION = 'v3.1';
-    const CONFIG = 'mailjet-mailer';
+    const PACKAGE = 'mailjet-mailer';
 
     /**
      * @var array
@@ -46,6 +44,7 @@ class Mailer {
     protected $environmentalized = false;
 
     protected $environment;
+    protected $account;
     protected $key;
     protected $secret;
     protected $version;
@@ -53,82 +52,98 @@ class Mailer {
     /**
      * Mailer constructor.
      */
-    public function __construct() {
+    public function __construct(array $options = []) {
         // set environment and prepare configuration
-         $this->environmentalize(App::environment());
+         $this->environmentalize($options);
     }
 
     /**
-     * If Mailer is initialized.
-     * @return mixed
+     * Sets the environment and prepares the config in config/mailjet according to the environment.
+     * @return void
+     * @throws \Exception
+     */
+    private function environmentalize(array $options = []) : void {
+        $options = array_merge([
+            'environment' => config(static::PACKAGE.'.environment'),
+            'account' => config(static::PACKAGE.'.account')
+        ], $options);
+        // set environment
+        $this->environment = $options['environment'];
+        // get configuration
+        $config = $this->configure($options['account']);
+        // initialize from config
+        $this->initialize($config);
+    }
+
+    /**
+     * If the mailer has been initialized.
+     *
+     * @return bool
      */
     public function isInitialized() {
         return $this->initialized;
     }
 
     /**
-     * Create a new request.
+     * Create a new Request
+     * @return MailjetRequest
      */
-    public static function newRequest($version = null) {
+    public function newRequest() : MailjetRequestable {
         return MailjetRequest::make([
-            'version' => $version === null ? static::DEFAULT_VERSION : $version,
-            'sandbox' => false
+            'version' => $this->version === null ? static::DEFAULT_VERSION : $this->version,
         ]);
+    }
+
+    /**
+     * @throws \Exception
+     */
+    public static function clearCache() {
+        cache()->clear(static::PACKAGE . ':mailer-instance');
+    }
+
+    /**
+     * Create a new Collection.
+     * @return MailjetRequestCollection
+     */
+    public function newCollection($version = null) : MailjetRequestable {
+        return MailjetRequestCollection::make($version === null ? static::DEFAULT_VERSION : $version);
     }
 
     /**
      * Get configuration option.
      * @param $option
-     * @return null
+     * @return null|mixed
      */
     public function getConfigOption($option) {
         if($this->initialized === false) {
-            $this->initialize();
+            // @note: this will initializes with default options.
+            $this->environmentalize();
         }
-
         return isset($this->config[$option]) ? $this->config[$option] : null;
     }
 
     /**
-     * Sets the environment and prepares the config in config/mailjet according to the environment.
-     * @param $environment
-     * @return mixed
-     */
-    private function environmentalize($environment) {
-        // set environment
-        $this->environment = $environment;
-        // get configuration
-        $config = $this->configure($environment);
-        // initialize from config
-        $this->initialize($config);
-    }
-
-    /**
      * Configure E-Mail.
-     *
-     * @param $environment
-     * @return mixed
+     * @param $account
+     * @return array
+     * @throws \Exception
      */
-    public function configure($environment, $counter = 0) {
-        // detect infinit loop.
-        if($counter > 5) {
-            throw new \Exception('possible infinit loop detected.');
+    public function configure($account) : array {
+        if(empty($this->environment)) {
+            // @todo: general MailjetMailerException
+            throw new \Exception('environment not set.');
         }
         // get config.
-        $config = config(static::CONFIG);
-        $environments = isset($config['environments']) ? $config['environments'] : [];
-        $aliases = isset($config['aliases']) ? $config['aliases'] : [];
+        $config = config(static::PACKAGE);
+        $accounts = isset($config['accounts']) ? $config['accounts'] : [];
 
-        // load with alias.
-        if(isset($aliases[$environment])) {
-            return $this->configure($aliases[$environment], $counter++);
+        if(!isset($accounts[$account])) {
+            // @todo: general MailjetMailerException
+            throw new \Exception('unable to configure with unknown account: ' . $account);
         }
 
-        if(isset($environments[$environment])) {
-            return $this->config = $environments[$environment];
-        }
-
-        throw new \Exception('unable to set settings for environment: ' . $environment);
+        $this->account = $account;
+        return $this->config = $accounts[$account];
     }
 
     /**
@@ -149,9 +164,13 @@ class Mailer {
      * @throws \Exception
      */
     protected function buildClient(array $options = [], $call = true) {
+        // set default version if none given.
+        if(!array_key_exists('version', $options)) {
+            $options['version'] = static::DEFAULT_VERSION;
+        }
         // validate version
         if(!in_array($options['version'], static::VERSIONS)) {
-            // @todo: custom exception.
+            // @todo: general MailjetMailerException
             throw new \Exception("unsupported version supplied: {$options['version']}");
         }
 
@@ -160,40 +179,39 @@ class Mailer {
             $this->log("version: {$options['version']}");
             $this->log("auth: {$this->key} : {$this->secret}");
         }
+        return $this->createMailClient($this->key, $this->secret, $call, $options);
+    }
+
+    /**
+     * Create a mail client.
+     */
+    protected function createMailClient($key, $secret, $call, $options) {
         // build Mailjet/Client
-        return new MailjetLibClient($this->key, $this->secret, $call, $options);
+        return new MailjetLibClient($key, $secret, $call, $options);
     }
 
     /**
      * Send transactional E-Mail.
+     *
      * @param array $options
      * @return bool|
      * @throws \Exception
      */
-    public static function send(MailjetRequest $Request, array $options = [], $dry = false) {
-        // increase tries for given Request.
-        $Request->tried();
-        // merge options
-        $options = array_merge(['version' => $Request->version], $options);
-        // set mode
-        if($dry === false) {
-            // switch mode to live
-            $Request->mode('live');
+    public function send(MailjetRequestable $Collection, array $options = [], $dry = false) {
+        // create a collection out of single MailjetRequest.
+        if(!$Collection instanceof MailjetRequestCollection) {
+            $Collection = $Collection->toCollection(true);
         }
-        else {
-            // set mode to dry.
-            $Request->mode('dry');
-        }
-        // prepare request before sending it.
-        if($Request->isPrepared() === false) {
-            $Request->prepare();
-        }
+        // prepare options.
+        $options = array_merge(['version' => $Collection->getVersion()], $options);
+        // prepare each request.
+        $Collection->prepareAll($dry);
         // if Request should be queued.
-        if($Request->shouldQueue()) {
-            return static::dispatch($Request, $options);
+        if($Collection->shouldQueue()) {
+            return $this->dispatch($Collection, $options);
         }
         // process request
-        return (new static())->process($Request, $options);
+        return $this->process($Collection, $options);
     }
 
     /**
@@ -202,53 +220,75 @@ class Mailer {
      * @return bool
      * @throws \Exception
      */
-    public static function sendDry(MailjetRequest $Request, array $options = []) {
+    public function sendDry(MailjetRequestable $Requests, array $options = []) {
         // send message in dry mode.
-        return static::send($Request, $options, true);
+        return $this->send($Requests, $options, true);
     }
 
     /**
      * Process the Request.
      * @param MailjetLibClient $MailClient
      * @param array $body
-     * @return bool|mixed
+     * @return bool|MailerResponse3|MailerResponse31
      * @throws \Exception
      */
-    public function process(MailjetRequest $Request, array $options) {
+    public function process(MailjetRequestable $Requests, array $options = []) {
+        // requests need to be prepared
+        if($Requests->isPrepared() === false) {
+            throw new \Exception('unprepared requests cannot be processed by Mailer.');
+        }
         // let request build the body.
         $LibResponse = null;
         // client validations $options.
         $MailClient = $this->buildClient($options);
         // get request mode
-        switch($Request->getMode()) {
+        return $this->processRequest($MailClient, $Requests);
+    }
+
+    /**
+     * Process a request with given MailClient.
+     * @param $Collection
+     * @param $MailClient
+     * @param callable $callback
+     * @return bool|MailerResponse3|MailerResponse31
+     */
+    protected function processRequest($MailClient, MailjetRequestable $Collection) {
+        switch($Collection->getRequestMode()) {
             case 'live':
                 try {
-                    $LibResponse = $MailClient->post(Resources::$Email, ['body' => $Request->buildBody()]);
-                    return $this->handleResponse($Request, $LibResponse);
+                    $body = $Collection->buildBody();
+                    $LibResponse = $MailClient->post(Resources::$Email, ['body' => $body]);
+                    return $this->handleResponse($Collection, $LibResponse);
                 } catch(\Exception $e) {
+                    var_dump($e);
                     return $this->handleInternalError($e);
                 }
-            break;
+                break;
             default:
             case 'dry':
                 try {
+                    $body = $Collection->buildBody();
+                    var_dump($body);
                     // version 3.1 supports sandbox
-                    if ($Request->getVersion() === static::VERSION_31 && $Request->isSandboxed() === true) {
+                    if ($Collection->getVersion() === static::VERSION_31 && $Collection->isSandboxed() === true) {
                         // sandbox the request
-                        $Request->useSandbox();
-                        $LibResponse = $MailClient->post(Resources::$Email, ['body' => $Request->buildBody()]);
-                        return $this->handleResponse($Request, $LibResponse);
+                        $Collection->useSandbox();
+                        $LibResponse = $MailClient->post(Resources::$Email, ['body' => $body]);
+                        return $this->handleResponse($Collection, $LibResponse);
                     }
 
-                    $this->log("request: {$Request->id}");
-                    $this->log("mode: {$Request->getMode()}");
-                    $this->log('sandbox: ' . ($Request->isSandboxed() ? 'true' : 'false'));
-                    $this->log(json_encode($Request->toArray()));
+                    $this->log('sandbox: ' . ($Collection->isSandboxed() ? 'true' : 'false'));
+                    foreach($Collection as $Request) {
+                        $this->log("mode: {$Collection->getRequestMode()}");
+                        $this->log("request: {$Collection->id}");
+                        $this->log(json_encode($Request->toArray()));
+                    }
+                    return true;
                 }
                 catch(\Exception $e) {
                     return $this->handleInternalError($e);
                 }
-            break;
+                break;
         }
         // if nothing was returned, we can just assume the call was a failure.
         return false;
@@ -261,26 +301,28 @@ class Mailer {
      * @throws \Exception
      * @todo: implement handleError.
      */
-    protected function handleResponse(MailjetRequest $Request, MailjetLibResponse $LibResponse) {
+    protected function handleResponse(MailjetRequestable $Requests, MailjetLibResponse $LibResponse) {
         // return MailerResponse according to given version.
-        switch($Request->getVersion()) {
+        switch($Requests->getVersion()) {
             case static::VERSION_3:
-                $MailerResponse = new MailerResponse3($Request, $LibResponse);
+                $MailerResponse = new MailerResponse3($Requests, $LibResponse);
                 break;
             // default v3.1
             default:
             case static::VERSION_31:
-                $MailerResponse = new MailerResponse31($Request, $LibResponse);
+                $MailerResponse = new MailerResponse31($Requests, $LibResponse);
                 break;
         }
-        // false if success is true, true if success was false.
         $error = !$MailerResponse->success();
+        // trigger event.
+        $event = $error ?
+            new Events\EmailError($Requests, $MailerResponse) :
+            new Events\EmailSend($Requests, $MailerResponse);
+        event($event);
         // update request with response.
-        $Request->updateFromResponse($error, $MailerResponse, $LibResponse);
-        // analyze data
-        // @todo: do we still need analyze?
-        // $MailerResponse->analyze($this);
-        // return response
+        // @todo: move update from response to EmailError/EmailSend.
+        $Requests->updateFromResponse($error, $MailerResponse, $LibResponse);
+        //
         return $MailerResponse;
     }
 
@@ -303,18 +345,25 @@ class Mailer {
 
     /**
      * Dispatch the job.
-     * @param MailjetRequest $Request
+     * @param MailjetRequest $Requests
      * @param $options
-     * @return null|\Illuminate\Foundation\Bus\PendingDispatch
      */
-    public static function dispatch(MailjetRequest $Request, array $options = []) {
+    protected function dispatch(MailjetRequestable $Requests, array $options = []) {
         // add to queue if specified
-        if($Request->shouldQueue() === false) {
-            throw new \Exception('Given Request is not marked to be queued.');
+        if($Requests->shouldQueue() === false) {
+            // @todo: general MailjetMailerException
+            throw new \Exception('Given Request/Collection is not marked to be queued.');
         }
-        // pass mailer options to job
-        $Job = $Request->makeJob($options);
+        // should queue each request.
+        if($Requests->shouldQueueEach()) {
+            $dispatched_jobs = collect();
+            foreach($Requests as $Request) {
+                $dispatched_jobs->add(dispatch($Request->makeJob($options)));
+            }
+            return $dispatched_jobs;
+        }
         // dipatch job
+        $Job = $Requests->makeJob($options);
         return dispatch($Job);
     }
 
@@ -328,4 +377,19 @@ class Mailer {
         }
     }
 
+    public function getVersion() {
+        return $this->version;
+    }
+
+    public function getEnvironment() {
+        return $this->environment;
+    }
+
+    public function getConfig() {
+        return $this->config;
+    }
+
+    public function getAccount() {
+        return $this->account;
+    }
 }

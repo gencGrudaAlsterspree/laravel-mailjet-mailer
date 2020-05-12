@@ -2,41 +2,40 @@
 
 namespace WizeWiz\MailjetMailer\Models;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use WizeWiz\MailjetMailer\Concerns\HandlesQueue;
+use WizeWiz\MailjetMailer\Concerns\HandlesRequestable;
 use WizeWiz\MailjetMailer\Concerns\UsesUuids;
 use WizeWiz\MailjetMailer\Contracts\MailjetableModel;
 use WizeWiz\MailjetMailer\Contracts\MailjetMessageable;
-use WizeWiz\MailjetMailer\Jobs\MailjetJobRequest;
+use WizeWiz\MailjetMailer\Contracts\MailjetRequestable;
+use WizeWiz\MailjetMailer\Events\InvalidRecipientNotice;
+use WizeWiz\MailjetMailer\Events\UnsavedUserNotice;
+use WizeWiz\MailjetMailer\Exceptions\InvalidNotifiableException;
 use WizeWiz\MailjetMailer\Mailer;
 use Illuminate\Database\Eloquent\Model;
-use WizeWiz\MailjetMailer\MailerResponse;
-use Mailjet\Response as MailjetLibResponse;
 
 /**
  * Class MailjetRequest
  * @package WizeWiz\MailjetMailer\Models
  */
-class MailjetRequest extends Model {
+class MailjetRequest extends Model implements MailjetRequestable {
 
-    use UsesUuids;
+    use UsesUuids,
+        HandlesQueue,
+        HandlesRequestable;
+
+    const STATUS_PREPARED = 'prepared';
+    const STATUS_FAILED = 'failed';
+    const STATUS_SUCCESS = 'success';
 
     protected $table = 'mailjet_requests';
     public $timestamps = true;
 
     protected $tries = 0;
     protected $max_tries = 3;
-
-    /**
-     * @var string If the message would be send into the real world.
-     * @modes live, dry
-     */
-    private $mode = 'live';
-
-    /**
-     * @var bool
-     */
-    protected $sent = false;
 
     /**
      * @var bool
@@ -59,25 +58,10 @@ class MailjetRequest extends Model {
     protected $notifiables = [];
 
     /**
-     * @var bool
+     * @var array
      */
-    protected $should_queue = false;
-
-    /**
-     * @var string|null
-     */
-    protected $queue_connection = null;
-
-    /**
-     * @var string
-     */
-    protected $queue_queue = null;
-
-    /**
-     * @var int|null
-     */
-    protected $queue_delay = null;
-
+    protected $template_variables = [];
+    
     /**
      * @var array
      */
@@ -115,6 +99,11 @@ class MailjetRequest extends Model {
     protected $messages = [];
 
     /**
+     * @var array
+     */
+    protected $template = [];
+
+    /**
      * MailjetRequest constructor.
      * @param array $attributes
      */
@@ -122,27 +111,47 @@ class MailjetRequest extends Model {
         parent::__construct($this->withDefaults($attributes));
     }
 
+    /**s
+     * Get variables by applying the default template variables supplied in the config.
+     * @return array
+     */
+    public function getVariablesAttribute() {
+        return array_merge($this->template_variables, json_decode($this->attributes['variables'], true));
+    }
+
+    public function availableTemplates() {
+        return (new Mailer())->getConfigOption('templates');
+    }
+
     /**
      * Set model defaults.
      * @param array $attributes
      * @return array
      */
-    protected function withDefaults(array $attributes) {
+    protected function withDefaults(array $attributes) : array {
         if(!isset($attributes['status'])) {
             $attributes['status'] = 'creating';
         }
         $attributes['recipients'] = [];
         $attributes['variables'] = [];
         $attributes['success'] = false;
+        $attributes['sandbox'] = false;
+
+        // apply defaults if not manually set.
+        $this->sender = array_merge(
+            (new Mailer())->getConfigOption('sender'),
+            $this->sender ?: []);
+        // set attributes.
+        $attributes['from_email'] = $this->sender['email'];
+        $attributes['from_name'] = $this->sender['name'];
 
         return $attributes;
     }
 
     /**
-     * Reinitialize from model.
+     * Reinitialize a request, e.g. when serialized in a queue.
      */
-    public function reinitialize() {
-        Log::info('reinitializing MailjetRequest.');
+    public function reinitialize() : void {
         if($this->isSaved()) {
             // reconstruct notifiables
             $this->notifiables = [];
@@ -159,15 +168,15 @@ class MailjetRequest extends Model {
             }
 
             switch($this->status) {
-                case 'prepared':
+                case static::STATUS_PREPARED:
                     $this->prepared = true;
                     $this->sent = false;
                     break;
-                case 'sent':
+                case static::STATUS_SUCCESS:
                     $this->prepared = true;
                     $this->sent = true;
                     break;
-                case 'failed':
+                case static::STATUS_FAILED:
                     $this->failed = true;
                     // @todo: when is it failed? after prepared or after sent?
                     $this->prepared = true;
@@ -182,226 +191,62 @@ class MailjetRequest extends Model {
     }
 
     /**
-     * Create a job to process this request.
-     * @param array $options
-     * @param MailjetJobRequest
-     */
-    public function makeJob(array $options = []) {
-        // create job
-        $Job = new MailjetJobRequest($this, $options);
-        if($this->queue_connection !== null) {
-            $Job->onConnection($this->queue_connection);
-        }
-        if($this->queue_delay !== null) {
-            $Job->delay($this->queue_delay);
-        }
-        return $Job;
-    }
-
-    /**
-     * Return version.
-     * @return mixed
-     */
-    public function getVersion() {
-        return $this->version;
-    }
-
-
-    /**
-     * Set mode.
-     * @param $mode Modes: live | dry
-     */
-    public function mode($mode) {
-        // @todo: check modes
-        $this->mode = $mode;
-        return $this;
-    }
-
-    /**
-     * Return mode.
-     * @return string
-     */
-    public function getMode() : string {
-        return $this->mode;
-    }
-
-    /**
-     * Should the Mailer be queued.
-     * @return bool
-     */
-    public function shouldQueue() : bool {
-        return $this->should_queue;
-    }
-
-    /**
-     * Set queue.
-     * @param $connection
-     * @param $delay
-     * @return $this
-     */
-    public function queue($connection = null, $queue = 'default', $delay = null) {
-        if(is_array($connection)) {
-            $delay = isset($connection['delay']) ? $connection['delay'] : $delay;
-            $queue = isset($connection['queue']) ? $connection['queue'] : $queue;
-            $connection = isset($connection['connection']) ? $connection['connection'] : null;
-        }
-
-        $this->should_queue = true;
-        $this->queueConnection($connection);
-        $this->queueQueue($queue);
-        $this->queueDelay($delay);
-        return $this;
-    }
-
-    /**
-     * Set connection for the queue.
-     * @param $connection
-     * @return $this
-     */
-    public function queueConnection($connection) {
-        $this->queue_connection = $connection;
-        return $this;
-    }
-
-    /**
-     * Return queue connection.
-     * @return null|string
-     */
-    public function getQueueConnection() {
-        return $this->queue_connection;
-    }
-
-    /**
-     * If queue_connection was set.
-     * @return bool
-     */
-    public function hasQueueConnection() {
-        if($this->shouldQueue()) {
-            return !empty($this->queue_connection);
-        }
-        return false;
-    }
-
-    /**
-     * If queue_connection was set.
-     * @return bool
-     */
-    public function hasQueueQueue() {
-        if($this->shouldQueue()) {
-            return !empty($this->queue_queue);
-        }
-        return false;
-    }
-
-    /**
-     * If queue_connection was set.
-     * @return bool
-     */
-    public function hasQueueDelay() {
-        if($this->shouldQueue()) {
-            return !empty($this->queue_delay);
-        }
-        return false;
-    }
-
-    /**
-     * Set queue queue.
-     * @param string $queue
-     * @return $this
-     */
-    public function queueQueue($queue = 'default') {
-        $this->queue_queue = $queue;
-        return $this;
-    }
-
-    /**
-     * Return queue queue.
-     * @return string
-     */
-    public function getQueueQueue() {
-        return $this->queue_queue;
-    }
-
-    /**
-     * Set queue delay.
-     * @param $delay
-     * @return $this
-     */
-    public function queueDelay($delay) {
-        $this->queue_delay = $delay;
-        return $this;
-    }
-
-    /**
-     * Return delay for queue.
-     * @return null|integer
-     */
-    public function getQueueDelay() {
-        return $this->queue_delay;
-    }
-
-    /**
-     * @see https://dev.mailjet.com/email/guides/send-api-v31/#sandbox-mode
-     * Turn sandbox on (only supported in v3.1)
-     * @param bool $sandbox
-     * @return Mailer
-     */
-    public function useSandbox($sandbox = true) {
-        $this->sandbox = $sandbox;
-        return $this;
-    }
-
-    /**
-     * Return is call will is/will be sandboxed.
-     * @return bool
-     */
-    public function isSandboxed() : bool {
-        return $this->sandbox;
-    }
-
-    /**
-     * If message was send.
-     * @return bool
-     */
-    public function isSent() : bool {
-        return $this->sent;
-    }
-
-    /**
      * Add a Notifiable object to the recipients list.
-     * @todo: Can we hint with Eloquent\Model?
-     * @param $notifiable
+     * @throws InvalidNotifiableException
      * @return Mailer
      */
-    public function notify(object $notifiable) {
-        try {
-            $email = null;
-            $name = null;
-            // default.
-            // if model implements MailjetableModel, we can use the defined methods to get recipient data.
-            if ($notifiable instanceof MailjetableModel) {
-                list('email' => $email, 'name' => $name) = $notifiable->mailjetableRecipient();
+    public function notify($notifiable) {
+        $notifiables = [];
+        $num_args = func_num_args();
+        if($num_args === 1) {
+            if (is_iterable($notifiable)) {
+                $notifiables = $notifiable;
+            } else {
+                $notifiables = [$notifiable];
             }
-            // alternative.
-            // try to get by default properties `email` and `name`.
-            else {
-                try {
-                    $email = $notifiable->email;
-                    $name = $notifiable->name;
-                } catch (\Exception $e) {
-                    $this->log($e->getMessage());
+        }
+        elseif ($num_args > 1) {
+            $notifiables = func_get_args();
+        }
+        unset($notifiable);
+
+        foreach($notifiables as $Notifiable) {
+            if(!$Notifiable instanceof MailjetMessageable) {
+                event(new InvalidRecipientNotice($Notifiable));
+                throw new InvalidNotifiableException();
+            }
+            try {
+
+                $email = null;
+                $name = null;
+                // default.
+                // if model implements MailjetableModel, we can use the defined methods to get recipient data.
+                if ($Notifiable instanceof MailjetableModel) {
+                    list('email' => $email, 'name' => $name) = $Notifiable->mailjetableRecipient();
                 }
+                // alternative.
+                // try to get by default properties `email` and `name`.
+                else {
+                    try {
+                        $email = $Notifiable->email;
+                        $name = $Notifiable->name;
+                    } catch (\Exception $e) {
+                        $this->log($e->getMessage());
+                        event(new InvalidRecipientNotice($Notifiable, $e));
+                    }
+                }
+                if ($this->hasNotifiable($email) === false) {
+                    // we always assume email is unique.
+                    $this->notifiables[$email] = $Notifiable;
+                }
+                if ($this->hasRecipient($email) === false) {
+                    // add recipient
+                    $this->recipient($email, $name);
+                }
+            } catch (\Exception $e) {
+                $this->log($e->getMessage());
+                event(new InvalidRecipientNotice($Notifiable, $e));
             }
-            if($this->hasNotifiable($email) === false) {
-                // we always assume email is unique.
-                $this->notifiables[$email] = $notifiable;
-            }
-            if($this->hasRecipient($email) === false) {
-                // add recipient
-                $this->recipient($email, $name);
-            }
-        } catch(\Exception $e) {
-            $this->log($e->getMessage());
         }
         return $this;
     }
@@ -442,15 +287,6 @@ class MailjetRequest extends Model {
      * @param $email
      * @return bool
      */
-    public function hasRecipient($email) : bool {
-        $index = array_search($email, array_column($this->recipients, 'email'));
-        return $index !== false;
-    }
-
-    /**
-     * @param $email
-     * @return bool
-     */
     public function hasNotifiable($email) : bool {
         return isset($this->notifiables[$email]);
     }
@@ -477,17 +313,28 @@ class MailjetRequest extends Model {
         if(is_string($name)) {
             $templates = (new Mailer())->getConfigOption('templates');
             if(array_key_exists($name, $templates) === false) {
-                throw new \Exception("template with {$name} not defined in ".Mailer::CONFIG.".".$this->environment.".templates");
+                throw new \Exception("template with {$name} not defined in ".Mailer::PACKAGE.".".$this->environment.".templates");
             }
-
             $this->template_name = $name;
-            $template = $templates[$name];
+            $this->template = $template = $templates[$name];
+
+            // template settings was given.
             if(is_array($template)) {
-                $this->templateId((int)@$template['id']);
-                $this->templateLanguage(@$template['language']);
+                if(!isset($template['id'])) {
+                    throw new \Excception("template '{$name}': missing id.");
+                }
+
+                $this
+                     // set the corresponding template id provided by Mailjet.
+                     ->templateId($template['id'])
+                     // set template variables.
+                     ->templateVariables((array) (isset($template['variables']) ? $template['variables'] : []))
+                     // set template language, if template variables were given, set to true, false otherwise.
+                     ->templateLanguage(isset($template['language']) ? $template['language'] : (!empty($this->template_variables) ? true : false));
             }
+            // we assume a template id was given.
             else {
-                $this->template_id = (int)@$template;
+                $this->templateId($template);
             }
         }
         return $this;
@@ -516,7 +363,7 @@ class MailjetRequest extends Model {
      * @return $this
      */
     public function templateId($id) {
-        $this->template_id = $id;
+        $this->template_id = (int)$id;
         return $this;
     }
 
@@ -531,6 +378,16 @@ class MailjetRequest extends Model {
     }
 
     /**
+     * Set a key in $this->variables with given value.
+     * @param $key
+     * @param $value
+     */
+    public function variable($key, $value) {
+        $this->attributes['variables'] = json_encode(array_merge($this->variables, [$key => $value]));
+        return $this;
+    }
+
+    /**
      * Use template language.
      * @param bool $language
      * @return Mailer
@@ -541,11 +398,38 @@ class MailjetRequest extends Model {
     }
 
     /**
+     * Use template variables.
+     * @param array $variables
+     * @return Mailer
+     */
+    public function templateVariables(array $variables) {
+        $this->template_variables = $variables;
+        return $this;
+    }
+
+    /**
      * Return recipients.
      * @return mixed
      */
     public function getRecipients() {
         return $this->recipients;
+    }
+
+    /**
+     * If recipient by $email exists.
+     * @param $email
+     * @return bool
+     */
+    public function hasRecipient($email) : bool {
+        return array_search($email, array_column($this->recipients, 'email')) !== false;
+    }
+
+    /**
+     * Has recipients.
+     * @return bool
+     */
+    public function hasRecipients() : bool {
+        return !empty($this->recipients);
     }
 
     /**
@@ -610,7 +494,7 @@ class MailjetRequest extends Model {
      * Should E-Mail be intercepted by modifying the recipient.
      */
     protected function shouldIntercept() {
-        $interceptor = config(Mailer::CONFIG . '.interceptor', false);
+        $interceptor = config(Mailer::PACKAGE . '.interceptor', false);
         if($interceptor && isset($interceptor['enabled']) && $interceptor['enabled'] === true) {
             return $interceptor;
         }
@@ -650,13 +534,6 @@ class MailjetRequest extends Model {
      */
     public function prepare() {
         $this->prepared = true;
-        // apply defaults if not manually set.
-        $this->sender = array_merge(
-            (new Mailer())->getConfigOption('sender'),
-            $this->sender ?: []);
-        // set attributes.
-        $this->from_email = $this->sender['email'];
-        $this->from_name = $this->sender['name'];
         // if request was not yet created, create now.
         if($this->isSaved() === false) {
             $this->status = 'prepared';
@@ -691,19 +568,22 @@ class MailjetRequest extends Model {
             if($saved) {
                 // attach notifiables.
                 foreach($this->notifiables as $notifiable) {
-                    $this->users()->attach($notifiable);
+                    try {
+                        $this->users()->attach($notifiable);
+                    // @todo: ignore non-saved users?
+                    } catch(QueryException $e) {
+                    } finally {
+                        event(new UnsavedUserNotice($notifiable));
+                    }
                 }
 
                 // create a message for each recipient.
                 foreach($this->recipients as $recipient) {
-
                     $email = $recipient['email'];
                     $message = new MailjetMessage([
                         'mailjet_request_id' => $this->id,
                         'email' => $email,
                         'version' => $this->version,
-                        'status' => "none",
-                        'delivery_status' => "none",
                         'sandbox' => $this->sandbox
                     ]);
 
@@ -711,9 +591,12 @@ class MailjetRequest extends Model {
                     $this->messages[] = $message;
                     if(isset($this->notifiables[$email]) &&
                         $this->notifiables[$email] instanceof MailjetMessageable) {
-                        $this->notifiables[$email]
-                            ->mailjet_messages()
-                            ->save($message);
+                        try {
+                            $this->notifiables[$email]->mailjet_messages()->save($message);
+                        } catch(QueryException $e) {
+                        } finally {
+                            event(new UnsavedUserNotice($notifiable));
+                        }
                     }
                 }
             }
@@ -726,39 +609,6 @@ class MailjetRequest extends Model {
      */
     public function isPrepared() {
         return $this->prepared;
-    }
-
-    /**
-     * Update the request with given response.
-     */
-    public function updateFromResponse($error,  MailerResponse $Response, MailjetLibResponse $LibResponse) {
-        // request was sent
-        if($error === false) {
-            // mark request as sent
-            $this->markAsSent();
-            $data = [
-                'status' => 'waiting',
-                'success' => true
-            ];
-        }
-        else {
-            // mark as failed
-            $this->markAsFailed();
-            $data = [
-                'status' => 'failed',
-                'success' => false
-            ];
-        }
-        // update request
-        if(($updated = $this->update($data))) {
-            // add delivery status for message.
-            $data['delivery_status'] = 'waiting';
-            // update messages
-            foreach($this->mailjet_messages as $message) {
-                $message->update($data);
-            }
-        }
-        return $updated;
     }
 
     /**
@@ -806,7 +656,6 @@ class MailjetRequest extends Model {
             'To' => [],
             'Subject' => $this->subject
         ];
-
         // set recipients.
         foreach($this->gatherRecipients() as $recipient) {
             $message['To'][] = [
@@ -814,7 +663,6 @@ class MailjetRequest extends Model {
                 'Name' => $recipient['name']
             ];
         }
-
         // set template
         if(!empty($this->template_id)) {
             $message['TemplateID'] = $this->template_id;
