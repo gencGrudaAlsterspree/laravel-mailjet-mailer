@@ -136,6 +136,7 @@ class MailjetRequest extends Model implements MailjetRequestable {
         $attributes['variables'] = [];
         $attributes['success'] = false;
         $attributes['sandbox'] = false;
+        $attributes['subject'] = null;
 
         // apply defaults if not manually set.
         $this->sender = array_merge(
@@ -264,6 +265,7 @@ class MailjetRequest extends Model implements MailjetRequestable {
             'name' => $name
         ];
         $this->attributes['recipients'] = json_encode($recipients);
+        return $this;
     }
 
     /**
