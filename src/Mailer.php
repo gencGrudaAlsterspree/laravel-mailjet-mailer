@@ -260,7 +260,7 @@ class Mailer implements Contracts\MailjetMailer {
                     $LibResponse = $MailClient->post(Resources::$Email, ['body' => $body]);
                     return $this->handleResponse($Collection, $LibResponse);
                 } catch(\Exception $e) {
-                    var_dump($e);
+                    Log::info($e->getMessage());
                     return $this->handleInternalError($e);
                 }
                 break;
@@ -268,7 +268,6 @@ class Mailer implements Contracts\MailjetMailer {
             case 'dry':
                 try {
                     $body = $Collection->buildBody();
-                    var_dump($body);
                     // version 3.1 supports sandbox
                     if ($Collection->getVersion() === static::VERSION_31 && $Collection->isSandboxed() === true) {
                         // sandbox the request
