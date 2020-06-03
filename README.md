@@ -2,7 +2,9 @@
 
 #### Status
 
-v1.3 (2020-12-05) - in-development
+v1.3.1 (3. June 2020) - _in-development_
+
+**This documentation is incomplete, currently the documentation is being revised**
 
 ### About this package
 
@@ -20,6 +22,10 @@ Send API.
 
 Install with composer with `composer require wize-wiz/laravel-mailjet-mailer`.
 
+Publish migration and configuration files with `php artisan vendor:publish`.
+
+Create the tables using `php artisan migrate`.
+
 ### Setup
 
 #### Local .env
@@ -33,124 +39,81 @@ MAILJET_APIKEY=mailjets-api-key
 MAILJET_APISECRET=mailjets-api-secret
 ```
 
-A third property can be added to select a backup option:
+If you have multiple mailjet accounts (e.g. for development), the `MAILJET_MAILER_ACCOUNT` environment variable sets the account to use. This independently of the used environment. 
 
 ```bash
-MAILJET_MAILER_BACKUP=smtp
+MAILJET_MAILER_ACCOUNT=live
 ```
 
-See [Backup driver](#backup-driver)<!-- @IGNORE PREVIOUS: anchor --> for more information.
+To prevent E-Mails being accidentally sent to customers, an email interceptor can be enabled. By default, this will intercept all emails. In the `mailjet-mailer` config, email addresses can be whitelisted and will be ignored by the interceptor.
+
+```bash
+MAILJET_MAILER_INTERCEPT=true
+MAILJET_MAILER_INTERCEPT_TO=intercept@mail.local
+MAILJET_MAILER_INTERCEPT_TO_NAME="Mailjet Interceptor"
+```
+<br />
 
 #### Config
 
-After sucessfull installation, the configuration file will be located under
-`config/mailjet-mailer.php`.
+After sucessfull installation and publishing the configuration file using `php artisan vendor:publish`. A default configuration file will be located under `config/mailjet-mailer.php`.
 
-Each configuration key represents an environment. A `default` configuration
-is already set with all available options:
+Each `accounts` key represents an environment. A `default` configuration is already set with all available options:
 
 ```php
 return [
-    'default' => [
-        'key' => env('MAILJET_APIKEY'),
-        'secret' => env('MAILJET_APISECRET'),
-        // templates defined in Mailjet Passport.
-        'templates' => [
-            // template alias for mailjet mailer.
-            'register-notification' => [
-                // template ID defined by Mailjet Passport.
-                'id' => '1000000',
-                // set to true to use Mailjets template engine.
-                'language' => true,
-                // any predefined variables
-                'variables' => []
-            ]
-        ],
-        // which Send API version to use, e.g. v3, v3.1. 
-        'version' => env('MAILJET_MAILER_API', 'v3.1'),
-        'sender' => [
-            // sender email
-            'email' => env('MAILJET_MAILER_FROM', env('MAIL_FROM', 'sender@example.com')),
-            // sender name
-            'name' => env('MAILJET_MAILER_FROM_NAME', env('MAIL_FROM_NAME', 'Mailjet Mailer'))
-        ]
+	'accounts' => [
+	    'default' => [
+	        'key' => env('MAILJET_APIKEY'),
+	        'secret' => env('MAILJET_APISECRET'),
+	        // templates defined in Mailjet Passport.
+	        'templates' => [],
+	        // which Send API version to use, e.g. v3, v3.1. 
+	        'version' => env('MAILJET_MAILER_API', 'v3.1'),
+	        'sender' => [
+	            // sender email
+	            'email' => env('MAILJET_MAILER_FROM', env('MAIL_FROM', 'sender@example.com')),
+	            // sender name
+	            'name' => env('MAILJET_MAILER_FROM_NAME', env('MAIL_FROM_NAME', 'Mailjet Mailer'))
+	        ]
+	    ]
     ]
 ];
 ```
 
-Each environment can have its own configuration. This can be very usefull
-to setup different accounts for different environments (stages), e.g. `production`
-and `development`/`local` environments:
+Each environment can have its own configuration. This can be very usefull to setup different accounts for different environments (stages), e.g. `production` and `development`/`local` environments:
 
 ```php
 return [
-    'development' => [
-        'key' => 'different-api-key',
-        'secret' => 'different-api-secret',
-        // templates defined in Mailjet Passport.
-        'templates' => [
-            // different template id
-            'register-notification' => [
-                'id' => '1005000',
-                'language' => false
-            ]
-        ],
-        // which Send API version to use, e.g. v3, v3.1. 
-        'version' => env('MAILJET_MAILER_API', 'v3.1'),
-        'sender' => [
-            // sender email
-            'email' => 'development@example.com',
-            // sender name
-            'name' => 'Development Server'
-        ]
+	'accounts' => [
+	    'development' => [
+	        'key' => 'different-api-key',
+	        'secret' => 'different-api-secret',
+	        // templates defined in Mailjet Passport.
+	        'templates' => [
+	            // different templates
+	            'register-notification' => [
+	                'id' => '1005000',
+	                'language' => false
+	            ]
+	        ],
+	        // which Send API version to use, e.g. v3, v3.1. 
+	        'version' => env('MAILJET_MAILER_API', 'v3.1'),
+	        'sender' => [
+	            // sender email
+	            'email' => 'development@example.com',
+	            // sender name
+	            'name' => 'Development Server'
+	        ]
+	    ]
     ]
 ];
 ```
 
-Environments can also be aliased. Lets say we have two Mailjet accounts.
-One for develoment (called test) and one for production (called live):
-
-```php
-return [
-    // settings for live production.
-    'live' => [
-        'key' => 'live-api-key',
-        'secret' => 'live-api-secret',
-        // ...
-    ],
-    // settings for development purposes.
-    'test' => [
-        'key' => 'test-api-key',
-        'secret' => 'test-api-secret',
-        // ...
-    ],       
-    // production will use 'live' settings.
-    'production' => 'live',
-    // development will use 'test' settings.
-    'development' => 'test',
-    // local will use whatever development is using.
-    'local' => 'development'
-];
-```
-
-These alias values can also come from the `.env` file, e.g.:
+In the `.env` file, we can switch environments easily. 
 
 ```bash
-MAILJET_MAILER_ENV=live
-```
-
-```php
-return [
-    'live' => [
-        // ...
-    ],
-    'test' => [
-        // ...
-    ],       
-    'production' => env('MAILJET_MAILER_ENV', 'live'),
-    'development' => env('MAILJET_MAILER_ENV', 'test'),
-    'local' => env('MAILJET_MAILER_ENV', 'test'),
-];
+MAILJET_MAILER_ACCOUNT=development
 ```
 
 ### Usage
@@ -264,7 +227,40 @@ public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Reques
 }
 ```
 
-If the email is found in the `users` table, the user will be automatically included in the notifiable list.
+If the email is found in the `users` table, the user will be automatically included to the notifiable list.
+
+### Bulk (Collection)
+
+Bulk email uses a collection to send personalized email. Here we prepare on single request to be personilized for each user and convert it to a collection. The assign method accepts a collection of users (notifiables) to be notified, the prepared request and a callback function.
+
+```php
+public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequestable  {
+	// simply get 10 users.
+	$Users = User::limit(10)->get();
+	// prepare the request
+	$Request
+        // template defined in our config/mailjet-mailer.php.
+        ->template('register')
+        // template variables defined at Mailjets Passport.
+        ->variables([
+            'text' => "A message sent with Mailjet!"
+        ])
+        // set subject.
+        ->subject('A message sent with Mailjet!');
+
+	return $Request
+		->toCollection(false)
+    	->assign($Users, $Request, function($User, $Request) {
+			// personalize request
+			$Request
+				->variable('greeting', "Hallo {$User->name}")
+				->notify($User);
+	
+			return $Request;
+		});
+	        
+	}
+```
 
 ### Queue
 
@@ -281,14 +277,14 @@ public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Reques
 
 ```
 
-### Webhook
+### <a name="webhook"></a> Webhook API
 
 - explain webhook client.
 - all events
 - url: **/api/mailjet/webhook**
 - configuration in Mailjet
 
-### <a name="backup-driver"></a> Backup
+### <a name="backup-driver"></a> Backup Diver
 
 - explain backup driver
 
@@ -303,4 +299,3 @@ The MIT License (MIT). Please see [License File](LICENSE.md) for more informatio
 - workout readme (1/2)
 - add examples (1/2)
 - update composer.json for all depenencies/requirements. (0/1)
-- create a stable version 1.0. (0/1)
