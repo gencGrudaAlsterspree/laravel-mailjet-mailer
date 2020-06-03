@@ -6,13 +6,12 @@ use WizeWiz\MailjetMailer\Channels\MailjetChannel;
 use WizeWiz\MailjetMailer\Collections\MailjetRequestCollection;
 use WizeWiz\MailjetMailer\Contracts\MailjetMessageable;
 use WizeWiz\MailjetMailer\Contracts\MailjetNotificationable;
-use WizeWiz\EnhancedNotifications\Notifications\Notification;
 use Illuminate\Notifications\Notification as LaravelNotification;
 use WizeWiz\MailjetMailer\Contracts\MailjetRequestable;
 use WizeWiz\MailjetMailer\Mailer;
 use WizeWiz\MailjetMailer\Models\MailjetRequest;
 
-abstract class MailjetNotification extends Notification implements MailjetNotificationable {
+abstract class MailjetNotification extends LaravelNotification implements MailjetNotificationable {
 
     /**
      * E-Mail subject.
