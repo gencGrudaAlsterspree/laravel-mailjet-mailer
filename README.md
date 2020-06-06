@@ -3,7 +3,7 @@
 
 ### Status
 
-v1.3.2 (6. June 2020) -  _in-development_
+v1.3.3 (6. June 2020) -  _in-development_
 
 **This documentation is currently being revised**
 
@@ -63,7 +63,7 @@ MAILJET_MAILER_API=v3
 
 To prevent e-mails being accidentally sent to customers, an email interceptor can be enabled. The interceptor will intercept all emails. for those emails who should not be intercepted can be put into a whitelist in the  `config/mailjet-mailer.php`configuration. See the  [e-mail interceptor section](#e-mail-interceptor)  for more details.
 
-> Please note that the `BCC` and `CC` addresses are not yet cleared by the interceptor. This is planned to be added in the release v1.4 of this package.
+> Please note that the `BCC` and `CC` addresses are not yet cleared by the interceptor. This is planned to be added in the milestone [v1.4](https://github.com/wize-wiz/laravel-mailjet-mailer/issues/4).
 
 ```bash
 MAILJET_MAILER_INTERCEPT=true
@@ -312,7 +312,7 @@ if($MailjetMessage->isSpam() || $MailjetMessage->isBounced()) {
 }
 ```
 
-See the [message events](#message-events) for more information.
+See the [retrieving events](#retrieving-events) for more information.
 
 <br />
 
@@ -392,7 +392,7 @@ $Mailer->send($Collection);
 
 Any `MailjetRequest` can be converted to a `MailjetRequestCollection`. There are two ways of creating a `MailjetRequestCollcetion`. 
 
-- `$Request->asCollection()` converts the `MailjetRequest` to a `MailjetRequestCollection` while adding the `MailjetRequest` to the newly created collection simply creates a new empty collection.
+- `$Request->asCollection()` converts the `MailjetRequest` to a `MailjetRequestCollection` while adding the `MailjetRequest` to the newly created collection.
 
 - `$Request->createCollection();` will simply create a new empty `MailjetRequestCollection`.
 
@@ -558,32 +558,47 @@ public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Reques
         ->subject('A message sent with Mailjet!');
 
     return $Request
-        ->toCollection(false)
+	    // create a new empty collection without adding the $Request.
+        ->createCollection()
+        // we'll pass the $Request to be cloned in the callback.
         ->assign($Users, $Request, function($User, $Request) {
             // personalize request
-            $Request
+            return $Request
                 ->variable('greeting', "Hallo {$User->name}")
                 ->notify($User);
-    
-            return $Request;
         });
             
     }
 ```
 
-### Queue
+<br />
 
-If a queue should be used, all options for a queue are available:
+## Queue
+
+All queue relevant options are available for the `MailjetRequest` and `MailjetRequestCollection`. 
 
 ```php
-public function toMailjet(MailjetMessageable $notifiable, MailjetRequest $Request) : MailjetRequestable  {
-    $connection = 'redis';
-    $queue = 'mail';
-    $delay = 60;
-    // put request on a queue.
-    return $Request->queue($connection, $queue, $delay);
-}
+use WizeWiz\MailjetMailer\Mailer;
+$Mailer = new Mailer();
+// queue details
+$connection = 'redis';
+$queue = 'mail';
+$delay = 60;
+// queue the request
+$Request = $Mailer->newRequest();
+$Request->queue($conncetion, $queue, $delay);
+// queue the collection (which queues all containing requests)
+$Collection = $Mailer->newCollection();
+// queue with a delay of 120.
+$Collection->queue($conncetion, $queue, 120);
+// add request will optain all queue details from the collection, 
+// so it will now have a delay of 120 instead of 60.
+$Collection->add($Request);
+```
 
+This is also possible for a `MailjetRequestCollection`.
+
+```php
 ```
 
 <br />
@@ -659,3 +674,4 @@ See my profile if wish to contact me by e-mail.
 ### License
 
 The MIT License (MIT). Please see  [License File](LICENSE.md)  for more information.
+
