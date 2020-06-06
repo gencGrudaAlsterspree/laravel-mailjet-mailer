@@ -4,7 +4,7 @@ namespace WizeWiz\MailjetMailer\Concerns;
 
 use Mailjet\Response as MailjetLibResponse;
 use WizeWiz\MailjetMailer\Collections\MailjetRequestCollection;
-use WizeWiz\MailjetMailer\Events\Webhook\BaseWebhookEvent;
+use WizeWiz\MailjetMailer\Events\Webhook\WebhookEvent;
 use WizeWiz\MailjetMailer\MailerResponse;
 use WizeWiz\MailjetMailer\Models\MailjetMessage;
 use WizeWiz\MailjetMailer\Models\MailjetRequest;
@@ -52,18 +52,14 @@ trait HandlesRequestable {
     /**
      * Convert to a MailjetRequestCollection.
      *
-     * @param bool $add_self Add request to the collection when converting.
+     * @param bool $add_request Add request to the collection when converting.
      */
-    public function toCollection($add_self = true) {
+    public function toCollection($add_request = true) {
         if($this instanceof MailjetRequestCollection) {
             return $this;
         }
         $this->isSandboxed();
         $Collection = (new MailjetRequestCollection($this->getVersion()));
-        // should we add this request?
-        if($add_self) {
-            $Collection->add($this);
-        }
         // make sure we pass on all the info from the single request to the collection.
         $Collection->setRequestMode($this->getRequestMode());
         if($this->isSandboxed()) {
@@ -71,6 +67,10 @@ trait HandlesRequestable {
         }
         if($this->shouldQueue()) {
             $Collection->queue($this->getQueue());
+        }
+        // should we add this request?
+        if($add_request) {
+            $Collection->add($this);
         }
         return $Collection;
     }
@@ -127,7 +127,7 @@ trait HandlesRequestable {
         // update request
         if(($updated = $this->update($data))) {
             // add delivery status for message.
-            $data['delivery_status'] = BaseWebhookEvent::EVENT_WAITING;
+            $data['delivery_status'] = WebhookEvent::EVENT_WAITING;
             // update messages
             /**
              * @var MailjetMessage $message
@@ -171,7 +171,7 @@ trait HandlesRequestable {
         // reset mesages to pending status.
         $this->mailjet_messages->each(function($Message) {
             $Message->update([
-                'delivery_status' => BaseWebhookEvent::EVENT_NONE
+                'delivery_status' => WebhookEvent::EVENT_NONE
             ]);
         });
     }

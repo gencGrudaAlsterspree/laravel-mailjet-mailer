@@ -3,8 +3,17 @@
 return [
 
     'environment' => env('APP_ENV', 'local'),
-    'account' => env('MAILJET_MAILER_ACCOUNT', 'default'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Account(s)
+    |--------------------------------------------------------------------------
+    |
+    | Which account to use and which accounts available at Mailjet.
+    |
+    */
+
+    'account' => env('MAILJET_MAILER_ACCOUNT', 'default'),
     'accounts' => [
         'default' => [
             'key' => env('MAILJET_APIKEY'),
@@ -17,6 +26,19 @@ return [
             ]
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | E-mail Interceptor
+    |--------------------------------------------------------------------------
+    |
+    | The e-mail interceptor will intercepts all e-mail addresses and change
+    | them to the corresponding MAILJET_MAILER_INTERCEPT_TO and
+    | MAILJET_MAILER_INTERCEPT_TO_NAME.
+    |
+    | E-mails can be whitelisted or all e-mails per domain.
+    |
+    */
 
     'interceptor' => [
         'enabled' => env('MAILJET_MAILER_INTERCEPT', false),
@@ -36,5 +58,19 @@ return [
             'cc' => true,
             'bbc' => true
         ]
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Webhook Events
+    |--------------------------------------------------------------------------
+    |
+    */
+
+    'webhook' => [
+        'enabled' => false,
+        'middleware' => ['api'],
+        'prefix' => 'api',
+        'endpoint' => 'mailjet/webhook'
     ]
 ];

@@ -82,8 +82,6 @@ class WebhookClient extends Controller {
             return $e->response();
         } catch(\Throwable $e) {
             // @todo: search for a debug solution.
-            var_dump($e->getMessage());
-            var_dump($e->getFile() . ' @ ' . $e->getLine());
             // return default response.
             return $this->response(static::RESPONSE_ERROR);
         }

@@ -95,18 +95,18 @@ class Mailer implements Contracts\MailjetMailer {
     }
 
     /**
-     * @throws \Exception
-     */
-    public static function clearCache() {
-        cache()->clear(static::PACKAGE . ':mailer-instance');
-    }
-
-    /**
      * Create a new Collection.
      * @return MailjetRequestCollection
      */
     public function newCollection($version = null) : MailjetRequestable {
         return MailjetRequestCollection::make($version === null ? static::DEFAULT_VERSION : $version);
+    }
+
+    /**
+     * @throws \Exception
+     */
+    public static function clearCache() {
+        cache()->clear(static::PACKAGE . ':mailer-instance');
     }
 
     /**

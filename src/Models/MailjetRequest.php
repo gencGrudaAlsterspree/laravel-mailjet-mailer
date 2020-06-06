@@ -8,7 +8,6 @@ use Illuminate\Support\Str;
 use WizeWiz\MailjetMailer\Concerns\HandlesQueue;
 use WizeWiz\MailjetMailer\Concerns\HandlesRequestable;
 use WizeWiz\MailjetMailer\Concerns\UsesUuids;
-use WizeWiz\MailjetMailer\Contracts\MailjetableModel;
 use WizeWiz\MailjetMailer\Contracts\MailjetMessageable;
 use WizeWiz\MailjetMailer\Contracts\MailjetRequestable;
 use WizeWiz\MailjetMailer\Events\InvalidRecipientNotice;
@@ -192,6 +191,13 @@ class MailjetRequest extends Model implements MailjetRequestable {
     }
 
     /**
+     * Create a new collection.
+     */
+    public function createCollection() {
+        return $this->toCollection(false);
+    }
+
+    /**
      * Add a Notifiable object to the recipients list.
      * @throws InvalidNotifiableException
      * @return Mailer
@@ -221,8 +227,8 @@ class MailjetRequest extends Model implements MailjetRequestable {
                 $email = null;
                 $name = null;
                 // default.
-                // if model implements MailjetableModel, we can use the defined methods to get recipient data.
-                if ($Notifiable instanceof MailjetableModel) {
+                // if model implements MailjetMessageable, we can use the defined methods to get recipient data.
+                if ($Notifiable instanceof MailjetMessageable) {
                     list('email' => $email, 'name' => $name) = $Notifiable->mailjetableRecipient();
                 }
                 // alternative.
@@ -254,7 +260,6 @@ class MailjetRequest extends Model implements MailjetRequestable {
 
     /**
      * Set add recipient to the recipients list.
-     * @todo: check and prevent diplicate to('email@email.com')->to('email@email.com')?
      * @param $recipient
      * @return Mailer
      */
@@ -264,6 +269,7 @@ class MailjetRequest extends Model implements MailjetRequestable {
             'email' => $email,
             'name' => $name
         ];
+        // we modify the raw content of the models attribute.
         $this->attributes['recipients'] = json_encode($recipients);
         return $this;
     }
@@ -275,10 +281,6 @@ class MailjetRequest extends Model implements MailjetRequestable {
      * @return Mailer
      */
     public function to($email, $name = null) {
-        $notifiable = $this->findNotifiable($email);
-        if($notifiable) {
-            return $this->notify($notifiable);
-        }
         // check if recipient exists.
         return $this->hasRecipient($email) === false ?
             $this->recipient($email, $name) :

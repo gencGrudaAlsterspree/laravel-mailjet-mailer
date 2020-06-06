@@ -11,6 +11,8 @@ use WizeWiz\MailjetMailer\Concerns\HandlesDynamicProperties;
 use WizeWiz\MailjetMailer\Contracts\HasDynamicProperties;
 use WizeWiz\MailjetMailer\Contracts\MailjetMessageable;
 use WizeWiz\MailjetMailer\Contracts\MailjetRequestable;
+use WizeWiz\MailjetMailer\Exceptions\InvalidNotifiableException;
+use WizeWiz\MailjetMailer\Exceptions\InvalidRecipientException;
 use WizeWiz\MailjetMailer\Mailer;
 use WizeWiz\MailjetMailer\MailerResponse;
 use WizeWiz\MailjetMailer\Models\MailjetRequest;
@@ -242,6 +244,7 @@ class MailjetRequestCollection extends Collection implements MailjetRequestable,
             $notifiables = collect([$notifiables]);
         }
         // we will overwrite all from given $Request.
+        // @todo: either the RequestCollection dominates the settings of Request, or the other way around.
         $this->useSandbox($Request->isSandboxed());
         if($Request->shouldQueue()) {
             $this->queue($Request->getQueue());
@@ -249,10 +252,15 @@ class MailjetRequestCollection extends Collection implements MailjetRequestable,
         $this->version = $Request->getVersion();
         // clone a new request from given $Request for each $notifiable.
         foreach($notifiables as $key => $notifiable) {
+            // if it is not a MailjetMessageable object.
             if(!$notifiable instanceof MailjetMessageable) {
-                // @todo: throw event? break the chain?
-                Log::info('skipping $notifiable, not a MailjetMessageable object.');
-                continue;
+                if(!is_array($notifiable)) {
+                    throw new InvalidNotifiableException();
+                }
+
+                if(!isset($notifiable['email']) || !isset($notifiable['name'])) {
+                    throw new InvalidRecipientException();
+                }
             }
 
             $NotifiableRequest = $callback($notifiable, clone $Request, $key);

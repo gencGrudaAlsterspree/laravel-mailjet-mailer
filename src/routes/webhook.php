@@ -1,21 +1,22 @@
 <?php
 
 /**
- * Make sure to `php artisan route:clear` when routes are not accessible under "api/"
+ * Make sure to run `php artisan route:clear` when routes are not accessible under "api/"
  */
 
-Route::middleware('api')
+Route::middleware(config('mailjet-mailer.webhook.middleware'))
     ->namespace('WizeWiz\MailjetMailer\Controllers')
-    ->prefix('api')
+    ->prefix(config('mailjet-mailer.webhook.prefix'))
     ->group(function() {
+        $route = config('mailjet-mailer.webhook.endpoint');
         // main: indirect call to all events.
-        Route::post('mailjet/webhook', 'WebhookClient@index');
+        Route::post($route, 'WebhookClient@index');
         //  direct call to each event.
-        Route::post('mailjet/webhook/blocked', 'WebhookClient@onBlocked');
-        Route::post('mailjet/webhook/bounce', 'WebhookClient@onBounce');
-        Route::post('mailjet/webhook/click', 'WebhookClient@onClick');
-        Route::post('mailjet/webhook/open', 'WebhookClient@onOpen');
-        Route::post('mailjet/webhook/sent', 'WebhookClient@onSent');
-        Route::post('mailjet/webhook/spam', 'WebhookClient@onSpam');
-        Route::post('mailjet/webhook/unsub', 'WebhookClient@onUnsub');
+        Route::post($route.'/blocked', 'WebhookClient@onBlocked');
+        Route::post($route.'/bounce', 'WebhookClient@onBounce');
+        Route::post($route.'/click', 'WebhookClient@onClick');
+        Route::post($route.'/open', 'WebhookClient@onOpen');
+        Route::post($route.'/sent', 'WebhookClient@onSent');
+        Route::post($route.'/spam', 'WebhookClient@onSpam');
+        Route::post($route.'/unsub', 'WebhookClient@onUnsub');
 });

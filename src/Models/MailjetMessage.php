@@ -5,11 +5,13 @@ namespace WizeWiz\MailjetMailer\Models;
 use Illuminate\Database\Eloquent\Model;
 use WizeWiz\EnhancedNotifications\Notifications\Concerns\Notifier;
 use WizeWiz\EnhancedNotifications\Notifications\Contracts\Notifies;
-use WizeWiz\MailjetMailer\Events\Webhook\BaseWebhookEvent;
+use WizeWiz\MailjetMailer\Concerns\HasWebhookEvents;
+use WizeWiz\MailjetMailer\Events\Webhook\WebhookEvent;
 
 class MailjetMessage extends Model implements Notifies {
 
-    use Notifier;
+    use Notifier,
+        HasWebhookEvents;
 
     const STATUS_NONE = 'none';
     const STATUS_PENDING = 'pending';
@@ -51,7 +53,7 @@ class MailjetMessage extends Model implements Notifies {
     protected function withDefaults(array $attributes) : array {
         return array_merge([
             'status' => static::STATUS_NONE,
-            'delivery_status' => BaseWebhookEvent::EVENT_NONE
+            'delivery_status' => WebhookEvent::EVENT_NONE
         ], $attributes);
     }
 
@@ -68,12 +70,6 @@ class MailjetMessage extends Model implements Notifies {
      */
     public function mailjet_messageble() {
         return $this->morphTo();
-    }
-
-    // has many
-    // @todo: rename to events
-    public function mailjet_webhook_events() {
-        return $this->hasMany(MailjetWebhookEvent::class, 'mailjet_id', 'mailjet_id');
     }
 
     /**

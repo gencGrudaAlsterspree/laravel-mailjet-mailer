@@ -3,7 +3,7 @@
 namespace WizeWiz\MailjetMailer\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use WizeWiz\MailjetMailer\Events\Webhook\BaseWebhookEvent;
+use WizeWiz\MailjetMailer\Events\Webhook\WebhookEvent;
 
 class MailjetWebhookEvent extends Model {
 
@@ -37,25 +37,25 @@ class MailjetWebhookEvent extends Model {
                    $updateable = false;
 
                    switch($EventModel->event) {
-                       case BaseWebhookEvent::EVENT_CLICK:
-                           if($current_status === BaseWebhookEvent::EVENT_OPEN ||
-                              $current_status === BaseWebhookEvent::EVENT_SENT) {
+                       case WebhookEvent::EVENT_CLICK:
+                           if($current_status === WebhookEvent::EVENT_OPEN ||
+                              $current_status === WebhookEvent::EVENT_SENT) {
                                 $updateable = true;
                            }
                            break;
-                       case BaseWebhookEvent::EVENT_OPEN:
-                           if($current_status !== BaseWebhookEvent::EVENT_CLICK) {
+                       case WebhookEvent::EVENT_OPEN:
+                           if($current_status !== WebhookEvent::EVENT_CLICK) {
                                $updateable = true;
                            }
                            break;
-                       case BaseWebhookEvent::EVENT_SENT:
-                           if($current_status === BaseWebhookEvent::EVENT_WAITING) {
+                       case WebhookEvent::EVENT_SENT:
+                           if($current_status === WebhookEvent::EVENT_WAITING) {
                               $updateable = true;
                            }
                            break;
-                       case BaseWebhookEvent::EVENT_BLOCKED:
-                       case BaseWebhookEvent::EVENT_SPAM:
-                       case BaseWebhookEvent::EVENT_BOUNCE:
+                       case WebhookEvent::EVENT_BLOCKED:
+                       case WebhookEvent::EVENT_SPAM:
+                       case WebhookEvent::EVENT_BOUNCE:
                            // @todo: always update?
                            $updateable = true;
                            break;

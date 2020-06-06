@@ -15,7 +15,11 @@ class MailjetMailerServiceProvider extends ServiceProvider {
      */
     public function register() {
         Event::subscribe(Listeners\MailjetMailerEventSubscriber::class);
-        Event::subscribe(Listeners\MailjetWebhookEventSubscriber::class);
+        // load webhook listener if enabled.
+        if(config('mailjet-mailer.webhook.enabled')) {
+            // @todo: can be removed anyway.
+            Event::subscribe(Listeners\MailjetWebhookEventSubscriber::class);
+        }
     }
 
     /**
@@ -29,10 +33,12 @@ class MailjetMailerServiceProvider extends ServiceProvider {
                 ClearCacheCommand::class
             ]);
         }
-
-        // mailjet-mailer migrations
+        // mailjet-mailer migrations.
         $this->loadMigrationsFrom(__DIR__.'/migrations/');
-        // include routes
-        $this->loadRoutesFrom(__DIR__.'/routes/webhook.php');
+        // load webhook routes if enabled.
+        if(config('mailjet-mailer.webhook.enabled')) {
+            // include routes
+            $this->loadRoutesFrom(__DIR__ . '/routes/webhook.php');
+        }
     }
 }

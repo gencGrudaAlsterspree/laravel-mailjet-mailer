@@ -2,4 +2,4 @@
 
 namespace WizeWiz\MailjetMailer\Events\Webhook;
 
-class UnknownEvent extends BaseWebhookEvent {}
+class UnknownEvent extends WebhookEvent {}

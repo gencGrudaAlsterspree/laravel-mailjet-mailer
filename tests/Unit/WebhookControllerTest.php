@@ -5,7 +5,7 @@ namespace Tests\Unit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithoutMiddleware;
 use Orchestra\Testbench\TestCase;
-use WizeWiz\MailjetMailer\Events\Webhook\BaseWebhookEvent;
+use WizeWiz\MailjetMailer\Events\Webhook\WebhookEvent;
 use WizeWiz\MailjetMailer\Mailer;
 use WizeWiz\MailjetMailer\Models\MailjetMessage;
 use WizeWiz\MailjetMailer\Models\MailjetRequest;
@@ -86,10 +86,10 @@ class WebhookControllerTest extends TestCase {
         // default version was set.
         $this->assertEquals(Mailer::DEFAULT_VERSION, $MailjetMessage->version);
         // message should be on EVENT_WAITING until event was received.
-        $this->assertEquals(BaseWebhookEvent::EVENT_WAITING, $MailjetMessage->delivery_status);
+        $this->assertEquals(WebhookEvent::EVENT_WAITING, $MailjetMessage->delivery_status);
 
         // this would be the exepected sequence of events.
-        foreach([BaseWebhookEvent::EVENT_SENT, BaseWebhookEvent::EVENT_OPEN, BaseWebhookEvent::EVENT_CLICK] as $event_name) {
+        foreach([WebhookEvent::EVENT_SENT, WebhookEvent::EVENT_OPEN, WebhookEvent::EVENT_CLICK] as $event_name) {
             // setting the delivery status to `sent`
             $response = $this->call('POST', '/api/mailjet/webhook', $Events->generateFromMessage($event_name, $MailjetMessage, false));
             $this->assertEquals(200, $response->status());
@@ -100,7 +100,7 @@ class WebhookControllerTest extends TestCase {
         }
 
         // if these events occure due to second devices, nothing should be updated.
-        foreach([BaseWebhookEvent::EVENT_SENT, BaseWebhookEvent::EVENT_OPEN] as $event_name) {
+        foreach([WebhookEvent::EVENT_SENT, WebhookEvent::EVENT_OPEN] as $event_name) {
             // setting the delivery status to `sent`
             $response = $this->call('POST', '/api/mailjet/webhook', $Events->generateFromMessage($event_name, $MailjetMessage, false));
             $this->assertEquals(200, $response->status());
@@ -108,7 +108,7 @@ class WebhookControllerTest extends TestCase {
             // refreshing the model due to possible event update.
             $MailjetMessage->refresh();
             // these events should not have affect the delivery status.
-            $this->assertEquals(BaseWebhookEvent::EVENT_CLICK, $MailjetMessage->delivery_status);
+            $this->assertEquals(WebhookEvent::EVENT_CLICK, $MailjetMessage->delivery_status);
         }
         // reset delete events
         $Request->resetStatus(MailjetRequest::STATUS_PREPARED);
@@ -173,7 +173,7 @@ class WebhookControllerTest extends TestCase {
             // default version was set.
             $this->assertEquals(Mailer::DEFAULT_VERSION, $MailjetMessage->version);
             // message should be on EVENT_WAITING until event was received.
-            $this->assertEquals(BaseWebhookEvent::EVENT_WAITING, $MailjetMessage->delivery_status);
+            $this->assertEquals(WebhookEvent::EVENT_WAITING, $MailjetMessage->delivery_status);
         }
 
         // setting the delivery status to `sent`

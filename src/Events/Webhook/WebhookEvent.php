@@ -8,7 +8,7 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-abstract class BaseWebhookEvent implements ShouldBroadcastNow {
+abstract class WebhookEvent implements ShouldBroadcastNow {
     use Dispatchable, SerializesModels;
 
     public $data;
@@ -48,7 +48,7 @@ abstract class BaseWebhookEvent implements ShouldBroadcastNow {
             ]);
         // silently fail
         } catch(\Exception $e) {
-            Log::info('in BaseWebhookEvent exception?');
+            Log::info('in WebhookEvent exception?');
             var_dump($e->getMessage());
             var_dump($e->getFile() . ' @ ' . $e->getCode());
         }

@@ -2,4 +2,4 @@
 
 namespace WizeWiz\MailjetMailer\Events\Webhook;
 
-class BlockedEvent extends BaseWebhookEvent {}
+class BlockedEvent extends WebhookEvent {}
