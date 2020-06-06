@@ -3,7 +3,7 @@
 
 ### Status
 
-v1.3.3 (6. June 2020) -  _in-development_
+v1.3.4 (6. June 2020)
 
 **This documentation is currently being revised**
 
@@ -29,14 +29,14 @@ This package does  **not**  try to integrate a Mailjet driver for Swift Mailer o
 
 #### Mailjet api access
 
-The Mailjet library uses two environment variables in the `.env` file to store the API access keys. This packages uses the same variables to define the default `APIKEY` and `APISECRET` for [MailjetMailer](https://github.com/wize-wiz/laravel-mailjet-mailer)  to access Mailjet's Send API.
+The Mailjet library uses two environment variables in the `.env` file to store the API access keys. This package uses the same variables to define the default `APIKEY` and `APISECRET` for [MailjetMailer](https://github.com/wize-wiz/laravel-mailjet-mailer)  to access Mailjet's Send API.
 
 ```bash
 MAILJET_APIKEY=mailjets-api-key
 MAILJET_APISECRET=mailjets-api-secret
 ```
 
-If you do no wish to use the default environment variables, just change the keys in the [configuration file](#config-api-access).
+If you do no wish to use the default environment variables, just change the keys in the [configuration file](#mailjet-api-access).
 
 #### Mailjet account settings
 
@@ -229,9 +229,9 @@ class User extends Authenticatable implements MailjetMessageable {
 If the user's name exists out of multiple attributes, e.g. `first_name` and `last_name`. Just add a getter attribute for `name` and leave the rest untouched.
 
 ```php
-	public function getNameAttribute() {
-		return "{$this-first_name} {$this->last_name}";
-	}
+public function getNameAttribute() {
+    return "{$this-first_name} {$this->last_name}";
+}
 ``` 
 
 To use the `User` model as a recipient, you simply add the model using `->notify($User)`. This is the equivalent of using `->to($User->mailjetableEmail(), $User->mailjetableName())`.
@@ -255,7 +255,7 @@ $Users = User::limit(10)->get();
 $Request->notify($Users);
 ```
 
-> Should notify detect the given argument does not implement the `MailjetMessageable` interface, an `InvalidNotifiableException` will be thrown.
+> Should notify detect the given argument or one of the containing elements in a `Collection`, does not implement the `MailjetMessageable` interface, an `InvalidNotifiableException` will be thrown.
 
 ### Retrieving made requests and messages
 
@@ -275,8 +275,8 @@ use App\User;
 use WizeWiz\MailjetMailer\Events\Webhook\WebhookEvent;
 
 $User
-	->mailjet_messages()
-	->where('delivery_status', WebhookEvent::EVENT_SENT)
+  ->mailjet_messages()
+  ->where('delivery_status', WebhookEvent::EVENT_SENT)
 ```
 
 Or you could verify if a registration e-mail was sent, or event opened/clicked.	
@@ -286,29 +286,29 @@ use App\User;
 use WizeWiz\MailjetMailer\Events\Webhook\WebhookEvent;
 
 $User
-	->mailjet_messages()
-	->where('template_name', 'registration')
-	->where(function($query) {
-		$query->where('delivery_status', WebhookEvent::EVENT_OPEN)
-		  	  ->orWhere('delivery_status', WebhookEvent::EVENT_CLICK)
-	})
-	// get the latest
-	->orderBy('created_at', 'desc')
-	->count();
+  ->mailjet_messages()
+  ->where('template_name', 'registration')
+  ->where(function($query) {
+    $query->where('delivery_status', WebhookEvent::EVENT_OPEN)
+          ->orWhere('delivery_status', WebhookEvent::EVENT_CLICK)
+  })
+  // get the latest
+  ->orderBy('created_at', 'desc')
+  ->count();
 ```
 
 If the e-mail was bounced or filtered as spam, you could notify the user about it.
 
 ```php
 $MailjetMessage = $User
-	->mailjet_messages()
-	->where('template_name', 'registration')
-	// get the latest
-	->orderBy('created_at', 'desc')
-	->first();
+  ->mailjet_messages()
+  ->where('template_name', 'registration')
+  // get the latest
+  ->orderBy('created_at', 'desc')
+  ->first();
 
 if($MailjetMessage->isSpam() || $MailjetMessage->isBounced()) {
-	// notify user ..
+  // notify user ..
 }
 ```
 
@@ -349,20 +349,20 @@ $Mailer = new Mailer();
 $Request = $Mailer->newRequest();
 
 $Request
-	// set template to be used
-	->template('example-template')
-	// set the template variables
-	->variables([
-		'showBackground' => true,
-		'text' => 'A different text?'
-	])
-	// set subject
-	->subject('This is a subject.')
-	// set recipient
-	->to('some@fake.email', 'Recipients Name');
+  // set template to be used
+  ->template('example-template')
+  // set the template variables
+  ->variables([
+    'showBackground' => true,
+    'text' => 'A different text?'
+  ])
+  // set subject
+  ->subject('This is a subject.')
+  // set recipient
+  ->to('some@fake.email', 'Recipients Name');
 	
-// send the request.
-$Mailer->send($Request);
+  // send the request.
+  $Mailer->send($Request);
 ```
 
 #### Collections
@@ -377,14 +377,14 @@ $Collection = $Mailer->newCollection();
 // each `newRequest()` call will create a new request instance and automatically added to the collection.
 $Request1 = $Collection->newRequest();
 $Request1
-	->subject('Email one')
-	->to('some@fake.email', 'Some User')
+  ->subject('Email one')
+  ->to('some@fake.email', 'Some User')
 	
 // another request.
 $Request2 = $Collection->newRequest();
 $Request2
-	->subject('Email two')
-	->to('another@fake.email', 'Another User');
+  ->subject('Email two')
+  ->to('another@fake.email', 'Another User');
 
 // send two requests with only one API call.
 $Mailer->send($Collection);
@@ -392,7 +392,7 @@ $Mailer->send($Collection);
 
 Any `MailjetRequest` can be converted to a `MailjetRequestCollection`. There are two ways of creating a `MailjetRequestCollcetion`. 
 
-- `$Request->asCollection()` converts the `MailjetRequest` to a `MailjetRequestCollection` while adding the `MailjetRequest` to the newly created collection.
+- `$Request->toCollection()` converts the `MailjetRequest` to a `MailjetRequestCollection` while adding the `MailjetRequest` to the newly created collection.
 
 - `$Request->createCollection();` will simply create a new empty `MailjetRequestCollection`.
 
@@ -413,12 +413,12 @@ The `->assign()` method was created to specify a predefined request and pass a c
 
 ```php
 $Collection->assign($Users, $Request, function($User, $Request) {
-	// cloned instance of $Request.
-	return $Request
-		->variables([
-			'greeting' => "Hello {$User->name}"
-		])
-		->notify($User);
+  // cloned instance of $Request.
+  return $Request
+    ->variables([
+      'greeting' => "Hello {$User->name}"
+    ])
+    ->notify($User);
 });
 ```
 
@@ -432,23 +432,23 @@ $Mailer = new Mailer();
 $Request = $Mailer->newRequest();
 // predefine the request.
 $Request
-	->subject('News update!')
-	->template('some-news-template')
-	->variables([
-		'showBackground' => true,
-		'text' => 'Some wonderful updates for you!'
-	]);
+  ->subject('News update!')
+  ->template('some-news-template')
+  ->variables([
+    'showBackground' => true,
+    'text' => 'Some wonderful updates for you!'
+  ]);
 // some random collection of users
 $Users = User::limit(10)->get();
 // create a collection
 $Collection = $Mailer->newCollection();
 // assign each user to a freshly cloned request
 $Collection->assign($Users, $Request, function($User, $Request) {
-	return $Request
-		->variables([
-			'greeting' => "Hello {$User->name}"
-		])
-		->notify($User);
+  return $Request
+    ->variables([
+      'greeting' => "Hello {$User->name}"
+    ])
+    ->notify($User);
 });
 // send the collection to deliver all (10) requests with only one API call.
 $Mailer->send($Collection);
@@ -460,15 +460,15 @@ It is also possible to use a [`Collection`](https://laravel.com/docs/7.x/collect
 
 ```php
 $recipients = collect([
-	['name' => 'Recipient Name', 'email' => 'recipient@fake.email'],
-	['name' => 'Another Recipient', 'email' => 'another@fake.email']
+  ['name' => 'Recipient Name', 'email' => 'recipient@fake.email'],
+  ['name' => 'Another Recipient', 'email' => 'another@fake.email']
 ]);
 $Collection->assign($recipients, $Request, function($recipient, $Request) {
-	return $Request
-		->variables([
-			'greeting' => "Hello {$recipient['name']}"
-		])
-		->to($recipient['email'], $recipient['name']);
+  return $Request
+    ->variables([
+      'greeting' => "Hello {$recipient['name']}"
+    ])
+    ->to($recipient['email'], $recipient['name']);
 });
 ```
 
@@ -579,11 +579,13 @@ All queue relevant options are available for the `MailjetRequest` and `MailjetRe
 
 ```php
 use WizeWiz\MailjetMailer\Mailer;
-$Mailer = new Mailer();
+
 // queue details
 $connection = 'redis';
 $queue = 'mail';
 $delay = 60;
+
+$Mailer = new Mailer();
 // queue the request
 $Request = $Mailer->newRequest();
 $Request->queue($conncetion, $queue, $delay);
@@ -591,14 +593,9 @@ $Request->queue($conncetion, $queue, $delay);
 $Collection = $Mailer->newCollection();
 // queue with a delay of 120.
 $Collection->queue($conncetion, $queue, 120);
-// add request will optain all queue details from the collection, 
+// add request will obtain all queue details from the collection, 
 // so it will now have a delay of 120 instead of 60.
 $Collection->add($Request);
-```
-
-This is also possible for a `MailjetRequestCollection`.
-
-```php
 ```
 
 <br />
@@ -615,12 +612,12 @@ The default endpoint for the webhook controller is `api/mailjet/webhooks` with a
 
 ```php
 return [
-	'webhooks' => [
-	  'enabled' => true,  
-	  'middleware' => ['api'],  
-	  'prefix' => 'api',
-	  'endpoint' => 'mailjet/webhook'
-	]	
+  'webhooks' => [
+    'enabled' => true,  
+    'middleware' => ['api'],  
+    'prefix' => 'api',
+    'endpoint' => 'mailjet/webhook'
+  ]	
 ]
 ```
 
@@ -644,12 +641,12 @@ The `MailjetMessage` model has a bunch of event methods to easily figure out the
 
 - `$MailjetMessage->isSent()` if the message was sent, this includes `open`, `click`, `spam` and `unsub` events.
 -  `$MailjetMessage->isOpened()` if the message was opened, this includes `click` and `unsub`. 
-- `$MailjetMessage->isClicked()` if the CTA (Call To Action) button was clicked.
+- `$MailjetMessage->isClicked()` if the CTA (Call To Action) was clicked.
 - `$MailjetMessage->isBounced()` if the e-mail was bounced. This includes soft and hard bounces.
 	- `$MailjetMessage->isSoftBounce()` if the bounce has a temporary issue, e.g. timeouts or e-mail box full. Delivery will be tried within 5 days. After 5 days the message status will be set to a hard bounce. 
 	- `$MailjetMessage->isHardBounce()` if the bounce has permanent issue, e.g. invalid e-mail addresses, non-existing destination servers.
 	- `$MailjetMessage->getBounceReason()` get the reason why an e-mail bounced.
-- `$MailjetMessage->isBlocked()` if the message was blocked. This error can have various reasons, e.g. so called pre-block which also possible spam or e-mails which have previously hard bounced, etc. 
+- `$MailjetMessage->isBlocked()` if the message was blocked. This error can have various reasons, e.g. so called pre-block which also filters possible spam or e-mails which have previously hard bounced, etc. 
 	- `$MailjetMessage->getBlockedReason()` get the reason why an e-mail was blocked.
 - `$MailjetMessage->isSpam()` if the e-mail was marked as spam.
 	- `$MailjetMessage->getSpamSource()` get the source which marked this e-mail as spam. 
